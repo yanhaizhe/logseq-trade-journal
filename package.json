@@ -1,0 +1,38 @@
+{
+  "name": "logseq-trade-journal",
+  "version": "0.1.0",
+  "description": "K线形态学习与交易记录复盘插件 for Logseq DB",
+  "main": "dist/index.html",
+  "logseq": {
+    "id": "_yanhaizhe-trade-journal",
+    "title": "Trade Journal",
+    "icon": "./icon.svg"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@klinecharts/pro": "^0.1.1",
+    "@logseq/libs": "^0.2.3",
+    "dayjs": "^1.11.10",
+    "klinecharts": "^9.7.0",
+    "papaparse": "^5.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.3.14",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1",
+    "vite-plugin-logseq": "^1.1.2",
+    "vitest": "^1.6.0"
+  }
+}
