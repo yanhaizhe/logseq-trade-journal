@@ -1,309 +1,379 @@
-/**
- * KLineChart 组件 v3 —— 参照 klinecharts/pro 架构
- * 
- * Pro 模式要点：
- * - 统一 Chart 生命周期管理（init → applyData → dispose）
- * - 主题系统（跟随 Logseq 明暗主题）
- * - applyMoreData 实时增量更新
- * - 时区支持
- * - 多画线独立管理
- */
-
-import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import * as kc from 'klinecharts';
-import type { KLineData, IndicatorType, Timeframe } from '@/types/chart';
-import { INDICATOR_OPTIONS, TIMEFRAME_OPTIONS } from '@/types/chart';
+import React, { useRef, useEffect, useState } from 'react';
+import { KLineChartPro, Period, SymbolInfo } from '@klinecharts/pro';
+import '@klinecharts/pro/dist/klinecharts-pro.css';
 import { getDataRouter } from '@/core/DataRouter';
-import { DataService } from '@/core/DataService';
 import { detectMarket } from '@/core/providers/types';
 import type { InstrumentInfo } from '@/types/trade';
 import { formatMoney, formatPercent } from '@/utils/format';
 
-// ===== 注册自定义图形 overlays (矩形 & 圆形) =====
-try {
-  kc.registerOverlay({
-    name: 'rect',
-    needDefaultPointFigure: true,
-    totalStep: 3,
-    createPointFigures: ({ coordinates }) => {
-      if (coordinates.length < 2) return [];
-      return [
-        {
-          type: 'rect',
-          attrs: {
-            x: Math.min(coordinates[0].x, coordinates[1].x),
-            y: Math.min(coordinates[0].y, coordinates[1].y),
-            width: Math.abs(coordinates[1].x - coordinates[0].x),
-            height: Math.abs(coordinates[1].y - coordinates[0].y)
-          },
-          styles: {
-            style: 'stroke_fill'
-          }
-        }
-      ];
-    }
-  });
+const dataRouter = getDataRouter();
 
-  kc.registerOverlay({
-    name: 'circle',
-    needDefaultPointFigure: true,
-    totalStep: 3,
-    createPointFigures: ({ coordinates }) => {
-      if (coordinates.length < 2) return [];
-      const r = Math.sqrt(
-        Math.pow(coordinates[1].x - coordinates[0].x, 2) +
-        Math.pow(coordinates[1].y - coordinates[0].y, 2)
-      );
-      return [
-        {
-          type: 'circle',
-          attrs: {
-            x: coordinates[0].x,
-            y: coordinates[0].y,
-            r: r
-          },
-          styles: {
-            style: 'stroke_fill'
-          }
-        }
-      ];
-    }
-  });
-} catch (e) {
-  console.warn('Failed to register custom overlays:', e);
+const PERIODS: Period[] = [
+  { multiplier: 1, timespan: 'minute', text: '1m' },
+  { multiplier: 5, timespan: 'minute', text: '5m' },
+  { multiplier: 15, timespan: 'minute', text: '15m' },
+  { multiplier: 30, timespan: 'minute', text: '30m' },
+  { multiplier: 60, timespan: 'minute', text: '1h' },
+  { multiplier: 240, timespan: 'minute', text: '4h' },
+  { multiplier: 1, timespan: 'day', text: '日K' },
+  { multiplier: 1, timespan: 'week', text: '周K' },
+  { multiplier: 1, timespan: 'month', text: '月K' },
+];
+
+function periodToTimeframe(period: Period): string {
+  const { multiplier, timespan } = period;
+  if (timespan === 'minute') {
+    if (multiplier === 1) return '1m';
+    if (multiplier === 5) return '5m';
+    if (multiplier === 15) return '15m';
+    if (multiplier === 30) return '30m';
+    if (multiplier === 60) return '1H';
+    if (multiplier === 240) return '4H';
+  }
+  if (timespan === 'day') return '1D';
+  if (timespan === 'week') return '1W';
+  if (timespan === 'month') return '1M';
+  return '1D';
 }
 
-// ===== 画图工具 =====
-const DRAWING_TOOLS = [
-  { id: 'cursor', name: '指针', icon: '🖱', group: 'nav' },
-  { id: 'horizontalStraightLine', name: '水平线', icon: '━', group: 'line' },
-  { id: 'horizontalRayLine', name: '水平射线', icon: '⇁', group: 'line' },
-  { id: 'horizontalSegment', name: '水平线段', icon: '╌', group: 'line' },
-  { id: 'verticalStraightLine', name: '垂直线', icon: '┃', group: 'line' },
-  { id: 'verticalRayLine', name: '垂直射线', icon: '↿', group: 'line' },
-  { id: 'verticalSegment', name: '垂直线段', icon: '╎', group: 'line' },
-  { id: 'straightLine', name: '直线', icon: '╱', group: 'line' },
-  { id: 'rayLine', name: '射线', icon: '↗', group: 'line' },
-  { id: 'segment', name: '线段', icon: '⎯', group: 'line' },
-  { id: 'parallelStraightLine', name: '平行线', icon: '⫼', group: 'line' },
-  { id: 'priceLine', name: '价格线', icon: '$', group: 'line' },
-  { id: 'priceChannelLine', name: '通道线', icon: '⫴', group: 'line' },
-  { id: 'rect', name: '矩形', icon: '▭', group: 'shape' },
-  { id: 'circle', name: '圆', icon: '○', group: 'shape' },
-  { id: 'fibonacciLine', name: '斐波那契', icon: 'Φ', group: 'shape' },
-];
-
-const DRAWING_GROUPS = [
-  { key: 'nav', label: '' },
-  { key: 'line', label: '线' },
-  { key: 'shape', label: '形' },
-];
+function marketLabel(m: string): string {
+  const map: Record<string, string> = { ashare: 'A股', us: '美股', hk: '港股', crypto: '加密', futures: '期货' };
+  return map[m] ?? m;
+}
 
 export interface KlineChartProps {
   symbol?: string;
-  data?: KLineData[];
-  config?: Partial<{ timeframe: Timeframe; indicators: IndicatorType[]; theme: 'light' | 'dark' }>;
   height?: number;
 }
 
-const dataService = new DataService();
-const dataRouter = getDataRouter();
+interface OrderBookItem {
+  price: number;
+  amount: number;
+  total: number;
+}
+
+interface TradeItem {
+  id: string;
+  time: string;
+  side: 'buy' | 'sell';
+  price: number;
+  amount: number;
+}
 
 const KlineChartComponent: React.FC<KlineChartProps> = ({
-  symbol: initialSymbol = '',
-  data: initialData,
-  config: configOverride,
-  height = 480,
+  symbol: initialSymbol = '000001',
+  height = 560,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<kc.Chart | null>(null);
-  const indicatorPaneMap = useRef<Map<string, string>>(new Map());
-  const disposeRef = useRef<(() => void) | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const proChartRef = useRef<KLineChartPro | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [symbol, setSymbol] = useState(initialSymbol);
-  const [symbolInput, setSymbolInput] = useState(initialSymbol);
-  const [timeframe, setTimeframe] = useState<string>(configOverride?.timeframe ?? '1D');
-  const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorType>>(
-    new Set(configOverride?.indicators ?? ['MA', 'VOLUME']),
-  );
-  const [activeDrawing, setActiveDrawing] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [klineData, setKlineData] = useState<KLineData[]>(initialData ?? []);
-  const [error, setError] = useState<string | null>(null);
+  const [currentSymbol, setCurrentSymbol] = useState(initialSymbol);
+  const [currentPrice, setCurrentPrice] = useState<number>(0);
+  const [currentChange, setCurrentChange] = useState<number>(0);
+  const [currentChangePct, setCurrentChangePct] = useState<number>(0);
+  const [marketType, setMarketType] = useState<string>('ashare');
   const [instrumentInfo, setInstrumentInfo] = useState<InstrumentInfo | null>(null);
-  const [chartTheme] = useState(configOverride?.theme ?? 'dark');
 
-  // ===== Pro 模式：统一 Chart 生命周期 =====
-  const initChart = useCallback(() => {
-    if (!containerRef.current || chartRef.current) return;
+  // Panels state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<'orderbook' | 'trades' | 'depth'>('orderbook');
+  const [orderBook, setOrderBook] = useState<{ asks: OrderBookItem[]; bids: OrderBookItem[]; maxTotal: number } | null>(null);
+  const [trades, setTrades] = useState<TradeItem[]>([]);
 
-    const chart = kc.init(containerRef.current, {
-      styles: createTheme(chartTheme) as any,
+  const decimals = currentPrice > 1000 ? 2 : currentPrice > 1 ? 2 : 4;
+
+  // Initialize and clean up chart
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const initialMarket = detectMarket(initialSymbol);
+    const isCrypto = initialMarket === 'crypto';
+
+    const pro = new KLineChartPro({
+      container: chartContainerRef.current,
+      symbol: {
+        ticker: initialSymbol,
+        name: initialSymbol,
+        shortName: initialSymbol,
+        market: isCrypto ? 'crypto' : 'stocks',
+        exchange: initialSymbol.startsWith('60') ? 'SH' : 'SZ',
+        pricePrecision: isCrypto ? 4 : 2,
+        volumePrecision: 0,
+        priceCurrency: isCrypto ? 'USDT' : 'CNY',
+        type: isCrypto ? 'crypto' : 'stock',
+      },
+      period: PERIODS[6], // Daily
+      periods: PERIODS,
+      theme: 'dark',
       locale: 'zh-CN',
       timezone: 'Asia/Shanghai',
+      drawingBarVisible: true,
+      watermark: 'Trade Journal',
+      datafeed: {
+        searchSymbols: async (search?: string) => {
+          const q = search?.trim().toUpperCase() || '000001';
+          const market = detectMarket(q);
+          const crypto = market === 'crypto';
+          return [{
+            ticker: q,
+            name: q,
+            shortName: q,
+            exchange: q.endsWith('SH') || q.startsWith('60') ? 'SH' : q.endsWith('SZ') ? 'SZ' : crypto ? 'Binance' : 'US',
+            market: crypto ? 'crypto' : 'stocks',
+            pricePrecision: crypto ? 4 : 2,
+            volumePrecision: 0,
+            priceCurrency: crypto ? 'USDT' : 'CNY',
+            type: crypto ? 'crypto' : 'stock',
+          }];
+        },
+        getHistoryKLineData: async (symbolInfo: SymbolInfo, period: Period) => {
+          try {
+            const tf = periodToTimeframe(period);
+            const result = await dataRouter.fetchKLine(symbolInfo.ticker, tf as any);
+            
+            if (result.data.length > 0) {
+              const last = result.data[result.data.length - 1];
+              const prev = result.data[result.data.length - 2] ?? last;
+              const change = last.close - prev.close;
+              const changePct = prev.close ? (change / prev.close) * 100 : 0;
+              
+              setCurrentPrice(last.close);
+              setCurrentChange(change);
+              setCurrentChangePct(changePct);
+              setCurrentSymbol(symbolInfo.ticker);
+              setMarketType(result.market || detectMarket(symbolInfo.ticker));
+
+              const info: InstrumentInfo = {
+                symbol: symbolInfo.ticker,
+                name: symbolInfo.name || symbolInfo.ticker,
+                market: result.market || detectMarket(symbolInfo.ticker),
+                price: last.close,
+                change,
+                changePct,
+                open: last.open,
+                high: last.high,
+                low: last.low,
+                volume: last.volume ?? 0,
+                turnover: (last as any).turnover ?? 0,
+              };
+
+              try {
+                const fetchedInfo = await dataRouter.fetchSymbolInfo(symbolInfo.ticker);
+                if (fetchedInfo && fetchedInfo.name) {
+                  info.name = fetchedInfo.name;
+                }
+              } catch {}
+              setInstrumentInfo(info);
+            }
+            return result.data;
+          } catch (e) {
+            console.error('[Datafeed] getHistoryKLineData failed:', e);
+            return [];
+          }
+        },
+        subscribe: () => {},
+        unsubscribe: () => {},
+      },
     });
 
-    if (!chart) return;
+    proChartRef.current = pro;
 
-    chartRef.current = chart;
-
-    // 初始指标
-    const indicators = configOverride?.indicators ?? ['MA', 'VOLUME'];
-    indicatorPaneMap.current = new Map();
-    indicators.forEach(ind => {
-      try {
-        // Pro 模式：VOLUME 使用独立 pane
-        const isOverlay = ind !== 'VOLUME';
-        const pid = chart.createIndicator(ind, isOverlay);
-        if (pid) indicatorPaneMap.current.set(ind, pid);
-      } catch {}
-    });
-
-    // Resize 观察
-    const ro = new ResizeObserver(() => chart.resize());
-    ro.observe(containerRef.current);
-    disposeRef.current = () => {
-      ro.disconnect();
-      try { (chart as any).destroy?.(); } catch {}
-      try { (chart as any).dispose?.(); } catch {}
-      chartRef.current = null;
-    };
-  }, [chartTheme, configOverride?.indicators]);
-
-  useEffect(() => {
-    initChart();
-    return () => disposeRef.current?.();
-  }, [initChart]);
-
-  // 应用数据
-  useEffect(() => {
-    if (chartRef.current && klineData.length > 0) {
-      chartRef.current.applyNewData(klineData);
-    }
-  }, [klineData]);
-
-  // 初始数据
-  useEffect(() => {
-    if (initialData?.length && klineData.length === 0) {
-      setKlineData(initialData);
-    }
-  }, [initialData]);
-
-  // ===== 数据加载 =====
-  const loadData = useCallback(async (sym: string) => {
-    if (!sym.trim()) return;
-    const normalized = sym.toUpperCase().trim();
-    setSymbol(normalized);
-    setSymbolInput(normalized);
-    setLoading(true);
-    setError(null);
-    setInstrumentInfo(null);
-
-    try {
-      const result = await dataRouter.fetchKLine(normalized, timeframe as Timeframe);
-      if (!result.data.length) {
-        setError('未获取到数据，请检查标的代码');
-        return;
+    return () => {
+      // Clean up pro instance
+      if (proChartRef.current) {
+        try {
+          (proChartRef.current as any)._chartApi?.dispose();
+        } catch (e) {
+          console.warn('Dispose error:', e);
+        }
+        proChartRef.current = null;
       }
-      setKlineData(result.data);
+    };
+  }, [initialSymbol]);
 
-      // 标的信息
-      const last = result.data[result.data.length - 1];
-      const prev = result.data[result.data.length - 2] ?? last;
-      const info: InstrumentInfo = {
-        symbol: normalized,
-        name: normalized,
-        market: detectMarket(normalized),
-        price: last.close,
-        change: last.close - prev.close,
-        changePct: prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0,
-        open: last.open, high: last.high, low: last.low,
-        volume: last.volume ?? 0, turnover: (last as any).turnover ?? 0,
-      };
-      setInstrumentInfo(info);
+  // Handle dynamic simulation data generation for Order Book and Recent Trades
+  useEffect(() => {
+    if (!currentPrice) return;
 
-      // 获取标的名称 (A股/港股/美股等)
-      try {
-        const symbolInfo = await dataRouter.fetchSymbolInfo(normalized);
-        if (symbolInfo && symbolInfo.name) {
-          info.name = symbolInfo.name;
-          setInstrumentInfo({ ...info });
-        }
-      } catch {}
-    } catch (err) {
-      setError(`加载失败: ${(err as Error).message}`);
-      setKlineData(dataService.generateMockData(normalized, timeframe as Timeframe, 200));
-    } finally {
-      setLoading(false);
-    }
-  }, [timeframe]);
+    // Helper to generate initial depth / order book
+    const step = Math.max(0.01, parseFloat((currentPrice * 0.00015).toFixed(decimals + 1)));
+    
+    const generateOrderBook = (price: number) => {
+      const newAsks: OrderBookItem[] = [];
+      const newBids: OrderBookItem[] = [];
+      
+      for (let i = 1; i <= 10; i++) {
+        const askPrice = price + (11 - i) * step;
+        const askAmount = Math.random() * (price > 1000 ? 5 : 500);
+        newAsks.push({ price: askPrice, amount: askAmount, total: 0 });
+      }
 
-  // 周期切换
-  const switchTimeframe = useCallback(async (tf: string) => {
-    setTimeframe(tf);
-    if (!symbol) return;
-    setLoading(true);
-    try {
-      const result = await dataRouter.fetchKLine(symbol, tf as Timeframe);
-      setKlineData(result.data);
-    } catch {
-      setKlineData(dataService.generateMockData(symbol, tf as Timeframe, 200));
-    } finally { setLoading(false); }
-  }, [symbol]);
+      for (let i = 1; i <= 10; i++) {
+        const bidPrice = price - i * step;
+        const bidAmount = Math.random() * (price > 1000 ? 5 : 500);
+        newBids.push({ price: bidPrice, amount: bidAmount, total: 0 });
+      }
 
-  // 指标切换
-  const toggleIndicator = useCallback((ind: IndicatorType) => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    const newActive = new Set(activeIndicators);
-    if (newActive.has(ind)) {
-      newActive.delete(ind);
-      const pid = indicatorPaneMap.current.get(ind);
-      if (pid) { try { chart.removeIndicator(pid, ind); } catch {}; indicatorPaneMap.current.delete(ind); }
-    } else {
-      newActive.add(ind);
-      const isOverlay = ind !== 'VOLUME';
-      try { const pid = chart.createIndicator(ind, isOverlay); if (pid) indicatorPaneMap.current.set(ind, pid); } catch {}
-    }
-    setActiveIndicators(newActive);
-  }, [activeIndicators]);
-
-  // 画图（多线共存）
-  const startDrawing = useCallback((toolId: string) => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    if (toolId === 'cursor') { setActiveDrawing(null); return; }
-    try {
-      chart.createOverlay({
-        name: toolId,
-        onDrawEnd: () => {
-          setActiveDrawing(null);
-          return false;
-        }
+      newAsks.reverse();
+      let askTotal = 0;
+      newAsks.forEach(item => {
+        askTotal += item.amount;
+        item.total = askTotal;
       });
-      setActiveDrawing(toolId);
-    } catch {}
-  }, []);
+      newAsks.reverse();
 
-  const clearAllDrawings = useCallback(() => {
-    chartRef.current?.removeOverlay();
-    setActiveDrawing(null);
-  }, []);
+      let bidTotal = 0;
+      newBids.forEach(item => {
+        bidTotal += item.amount;
+        item.total = bidTotal;
+      });
 
-  // CSV
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (!file?.name.endsWith('.csv')) return;
-    setLoading(true);
-    try { const d = await dataService.parseCSV(file); if (d.length) setKlineData(d); } finally { setLoading(false); }
-  }, []);
+      return { asks: newAsks, bids: newBids, maxTotal: Math.max(askTotal, bidTotal) };
+    };
 
-  const groupedTools = useMemo(() =>
-    DRAWING_GROUPS.map(g => ({ ...g, tools: DRAWING_TOOLS.filter(t => t.group === g.key) })).filter(g => g.tools.length > 0), []);
+    setOrderBook(generateOrderBook(currentPrice));
+
+    // Update order book volumes
+    const orderBookTimer = setInterval(() => {
+      setOrderBook(prev => {
+        if (!prev) return null;
+        const newAsks = prev.asks.map(item => ({
+          ...item,
+          amount: Math.max(0.1, item.amount * (0.85 + Math.random() * 0.3))
+        }));
+        const newBids = prev.bids.map(item => ({
+          ...item,
+          amount: Math.max(0.1, item.amount * (0.85 + Math.random() * 0.3))
+        }));
+
+        newAsks.reverse();
+        let askTotal = 0;
+        newAsks.forEach(item => {
+          askTotal += item.amount;
+          item.total = askTotal;
+        });
+        newAsks.reverse();
+
+        let bidTotal = 0;
+        newBids.forEach(item => {
+          bidTotal += item.amount;
+          item.total = bidTotal;
+        });
+
+        return { asks: newAsks, bids: newBids, maxTotal: Math.max(askTotal, bidTotal) };
+      });
+    }, 1500);
+
+    // Initial trades
+    const initialTrades: TradeItem[] = [];
+    for (let i = 0; i < 15; i++) {
+      const time = new Date(Date.now() - i * 6000);
+      initialTrades.push({
+        id: Math.random().toString(),
+        time: time.toTimeString().split(' ')[0],
+        side: Math.random() > 0.5 ? 'buy' : 'sell',
+        price: currentPrice + (Math.random() - 0.5) * 4 * step,
+        amount: Math.random() * (currentPrice > 1000 ? 2 : 200)
+      });
+    }
+    setTrades(initialTrades);
+
+    // Dynamic new trade event simulator
+    const tradeTimer = setInterval(() => {
+      setTrades(prev => {
+        const time = new Date();
+        const newTrade: TradeItem = {
+          id: Math.random().toString(),
+          time: time.toTimeString().split(' ')[0],
+          side: Math.random() > 0.5 ? 'buy' : 'sell',
+          price: currentPrice + (Math.random() - 0.5) * 2 * step,
+          amount: Math.random() * (currentPrice > 1000 ? 1 : 100)
+        };
+        return [newTrade, ...prev.slice(0, 19)];
+      });
+    }, 2000 + Math.random() * 2000);
+
+    return () => {
+      clearInterval(orderBookTimer);
+      clearInterval(tradeTimer);
+    };
+  }, [currentPrice, currentSymbol]);
+
+  // Canvas drawing for Depth Chart
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !orderBook || activeTab !== 'depth') return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Get true bounding rect size
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const bids = [...orderBook.bids].reverse();
+    const asks = orderBook.asks;
+    const maxTotal = orderBook.maxTotal || 1;
+    const center = width / 2;
+
+    // Green Bids slope
+    if (bids.length > 0) {
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      
+      bids.forEach((bid, i) => {
+        const x = (i / (bids.length - 1)) * center;
+        const y = height - (bid.total / maxTotal) * (height - 30);
+        ctx.lineTo(x, y);
+      });
+      
+      ctx.lineTo(center, height);
+      ctx.closePath();
+      
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, 'rgba(34, 197, 94, 0.22)');
+      grad.addColorStop(1, 'rgba(34, 197, 94, 0.01)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      
+      ctx.strokeStyle = 'rgb(34, 197, 94)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Red Asks slope
+    if (asks.length > 0) {
+      ctx.beginPath();
+      ctx.moveTo(center, height);
+      
+      asks.forEach((ask, i) => {
+        const x = center + (i / (asks.length - 1)) * center;
+        const y = height - (ask.total / maxTotal) * (height - 30);
+        ctx.lineTo(x, y);
+      });
+      
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, 'rgba(239, 68, 68, 0.22)');
+      grad.addColorStop(1, 'rgba(239, 68, 68, 0.01)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      
+      ctx.strokeStyle = 'rgb(239, 68, 68)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }, [orderBook, activeTab]);
 
   return (
-    <div className="kline-chart-wrapper">
+    <div className="tj-pro-chart-wrapper">
       {/* 标的信息栏 */}
       {instrumentInfo && (
         <div className="instrument-info">
@@ -313,73 +383,149 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
             <span className={`info-tag ${instrumentInfo.market}`}>{marketLabel(instrumentInfo.market)}</span>
           </div>
           <div className="info-center">
-            <span className="info-price">{instrumentInfo.price.toFixed(2)}</span>
+            <span className="info-price">{instrumentInfo.price.toFixed(decimals)}</span>
             <span className={`info-change ${instrumentInfo.change >= 0 ? 'up' : 'down'}`}>
               {formatMoney(instrumentInfo.change)} ({formatPercent(instrumentInfo.changePct)})
             </span>
           </div>
           <div className="info-right">
-            <span>O <b>{instrumentInfo.open.toFixed(2)}</b></span>
-            <span>H <b className="up">{instrumentInfo.high.toFixed(2)}</b></span>
-            <span>L <b className="down">{instrumentInfo.low.toFixed(2)}</b></span>
-            <span>V <b>{(instrumentInfo.volume / 10000).toFixed(0)}万</b></span>
+            <span>开盘 <b>{instrumentInfo.open.toFixed(decimals)}</b></span>
+            <span>最高 <b className="up">{instrumentInfo.high.toFixed(decimals)}</b></span>
+            <span>最低 <b className="down">{instrumentInfo.low.toFixed(decimals)}</b></span>
+            <span>成交量 <b>{(instrumentInfo.volume / 10000).toFixed(1)}万</b></span>
           </div>
         </div>
       )}
 
-      {/* 顶栏 */}
-      <div className="chart-topbar">
-        <div className="topbar-left">
-          <input className="symbol-input" type="text" value={symbolInput}
-            onChange={e => setSymbolInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && loadData(symbolInput)}
-            placeholder="000001 / AAPL / BTCUSDT" spellCheck={false} />
-          <button className="topbar-btn" onClick={() => loadData(symbolInput)} disabled={loading}>
-            {loading ? '⏳' : '加载'}
-          </button>
-        </div>
-        <div className="topbar-center">
-          {TIMEFRAME_OPTIONS.map(tf => (
-            <button key={tf.value} className={`tf-btn ${tf.value === timeframe ? 'active' : ''}`}
-              onClick={() => switchTimeframe(tf.value)}>{tf.label}</button>
-          ))}
-        </div>
-        <div className="topbar-right">
-          {INDICATOR_OPTIONS.map(ind => (
-            <button key={ind.value} className={`ind-btn ${activeIndicators.has(ind.value) ? 'active' : ''}`}
-              onClick={() => toggleIndicator(ind.value)} title={ind.label}>{ind.label.split(' ')[0]}</button>
-          ))}
-        </div>
-      </div>
+      {/* 主体区域：左侧图表，右侧深度与委托 */}
+      <div className="tj-pro-chart-body" style={{ height }}>
+        {/* 图表容器 */}
+        <div ref={chartContainerRef} className="tj-pro-chart-container" />
 
-      {/* 主体 */}
-      <div className="chart-body">
-        <div className="chart-left-toolbar">
-          {groupedTools.map(group => (
-            <div key={group.key} className="tool-group">
-              {group.label && <div className="tool-group-label">{group.label}</div>}
-              {group.tools.map(tool => (
-                <button key={tool.id} className={`tool-btn ${activeDrawing === tool.id ? 'active' : ''}`}
-                  onClick={() => startDrawing(tool.id)} title={tool.name}>
-                  <span className="tool-icon">{tool.icon}</span>
+        {/* 侧边栏 */}
+        <div className={`tj-pro-sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`}>
+          {isSidebarOpen ? (
+            <div className="tj-sidebar-content">
+              {/* 标签页导航 */}
+              <div className="tj-sidebar-tabs">
+                <button
+                  className={`tj-tab-btn ${activeTab === 'orderbook' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('orderbook')}
+                >
+                  委托簿
                 </button>
-              ))}
-            </div>
-          ))}
-          <button className="tool-btn clear-btn" onClick={clearAllDrawings} title="清除全部">
-            <span className="tool-icon">🗑</span>
-          </button>
-        </div>
+                <button
+                  className={`tj-tab-btn ${activeTab === 'trades' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('trades')}
+                >
+                  最新成交
+                </button>
+                <button
+                  className={`tj-tab-btn ${activeTab === 'depth' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('depth')}
+                >
+                  深度图
+                </button>
+                <button className="tj-collapse-btn" onClick={() => setIsSidebarOpen(false)} title="收起侧栏">
+                  ▶
+                </button>
+              </div>
 
-        <div className="chart-main-area">
-          {error && <div className="chart-error-bar">{error}</div>}
-          <div ref={containerRef} className="kline-chart-container" style={{ height, width: '100%' }}
-            onDrop={handleDrop} onDragOver={e => e.preventDefault()} />
-          {klineData.length === 0 && !loading && (
-            <div className="kline-chart-empty">
-              <div className="empty-icon">📊</div>
-              <p>输入标的代码加载K线数据</p>
-              <p className="empty-hint">A股:6位代码 | 美股:AAPL | 加密:BTCUSDT</p>
+              {/* 标签页内容 */}
+              <div className="tj-tab-pane">
+                {/* 委托簿 */}
+                {activeTab === 'orderbook' && (
+                  <div className="tj-orderbook-panel">
+                    <div className="ob-header">
+                      <span>价格</span>
+                      <span className="text-right">数量</span>
+                      <span className="text-right">累计</span>
+                    </div>
+                    
+                    {/* Asks (卖盘) */}
+                    <div className="ob-section asks">
+                      {orderBook?.asks.map((ask, idx) => {
+                        const widthPct = orderBook.maxTotal ? (ask.total / orderBook.maxTotal) * 100 : 0;
+                        return (
+                          <div key={`ask-${idx}`} className="ob-row ask-row">
+                            <span className="price red">{ask.price.toFixed(decimals)}</span>
+                            <span className="amount text-right">{ask.amount.toFixed(decimals === 4 ? 3 : 1)}</span>
+                            <span className="total text-right">{ask.total.toFixed(decimals === 4 ? 2 : 0)}</span>
+                            <div className="row-bar red-bar" style={{ width: `${widthPct}%` }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* 最新价格 & 差价 */}
+                    <div className="ob-midbar">
+                      <span className={`mid-price ${currentChange >= 0 ? 'up' : 'down'}`}>
+                        {currentPrice.toFixed(decimals)}
+                      </span>
+                      <span className="mid-spread">
+                        点差: {((currentPrice * 0.00015)).toFixed(decimals)}
+                      </span>
+                    </div>
+
+                    {/* Bids (买盘) */}
+                    <div className="ob-section bids">
+                      {orderBook?.bids.map((bid, idx) => {
+                        const widthPct = orderBook.maxTotal ? (bid.total / orderBook.maxTotal) * 100 : 0;
+                        return (
+                          <div key={`bid-${idx}`} className="ob-row bid-row">
+                            <span className="price green">{bid.price.toFixed(decimals)}</span>
+                            <span className="amount text-right">{bid.amount.toFixed(decimals === 4 ? 3 : 1)}</span>
+                            <span className="total text-right">{bid.total.toFixed(decimals === 4 ? 2 : 0)}</span>
+                            <div className="row-bar green-bar" style={{ width: `${widthPct}%` }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 最新成交 */}
+                {activeTab === 'trades' && (
+                  <div className="tj-trades-panel">
+                    <div className="ob-header">
+                      <span>时间</span>
+                      <span>方向</span>
+                      <span className="text-right">价格</span>
+                      <span className="text-right">数量</span>
+                    </div>
+                    <div className="trades-list">
+                      {trades.map(trade => (
+                        <div key={trade.id} className="trade-row">
+                          <span className="time">{trade.time}</span>
+                          <span className={`side ${trade.side === 'buy' ? 'green' : 'red'}`}>
+                            {trade.side === 'buy' ? '买入' : '卖出'}
+                          </span>
+                          <span className={`price text-right ${trade.side === 'buy' ? 'green' : 'red'}`}>
+                            {trade.price.toFixed(decimals)}
+                          </span>
+                          <span className="amount text-right">{trade.amount.toFixed(decimals === 4 ? 3 : 1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 深度图 */}
+                {activeTab === 'depth' && (
+                  <div className="tj-depth-panel">
+                    <canvas ref={canvasRef} className="tj-depth-canvas" />
+                    <div className="depth-labels">
+                      <span className="green">买盘</span>
+                      <span className="red">卖盘</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="tj-collapsed-bar" onClick={() => setIsSidebarOpen(true)} title="展开侧栏">
+              <span className="collapsed-arrow">◀</span>
+              <span className="collapsed-text">委<br />托<br />簿</span>
             </div>
           )}
         </div>
@@ -387,54 +533,5 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
     </div>
   );
 };
-
-function marketLabel(m: string): string {
-  const map: Record<string, string> = { ashare: 'A股', us: '美股', hk: '港股', crypto: '加密', futures: '期货' };
-  return map[m] ?? m;
-}
-
-/** 创建 KLineChart 主题（Pro 风格） */
-function createTheme(type: 'light' | 'dark') {
-  if (type === 'light') {
-    return {
-      grid: { horizontal: { color: '#e8e8e8', style: 'solid' as const, size: 1 }, vertical: { color: '#e8e8e8', style: 'solid' as const, size: 1 } },
-      candle: {
-        type: 'candle_solid' as const,
-        bar: { upColor: '#ef4444', downColor: '#22c55e', noChangeColor: '#666', upBorderColor: '#ef4444', downBorderColor: '#22c55e', noChangeBorderColor: '#666', upWickColor: '#ef4444', downWickColor: '#22c55e', noChangeWickColor: '#666' },
-        priceMark: { high: { show: true, color: '#ef4444' }, low: { show: true, color: '#22c55e' } },
-      },
-      xAxis: { axisLine: { color: '#ccc', size: 1 }, tickText: { color: '#666', size: 11 } },
-      yAxis: { axisLine: { color: '#ccc', size: 1 }, tickText: { color: '#666', size: 11 } },
-      separator: { color: '#e8e8e8', size: 1 },
-      overlay: {
-        point: { color: '#1677ff', borderColor: 'rgba(22, 119, 255, 0.35)', borderSize: 1, radius: 4, activeRadius: 6, activeColor: '#1677ff', activeBorderColor: 'rgba(22, 119, 255, 0.5)' },
-        line: { color: '#1677ff', size: 1.5, style: 'solid' },
-        rect: { borderColor: '#1677ff', borderSize: 1.5, color: 'rgba(22, 119, 255, 0.1)' },
-        circle: { borderColor: '#1677ff', borderSize: 1.5, color: 'rgba(22, 119, 255, 0.1)' },
-        polygon: { borderColor: '#1677ff', borderSize: 1.5, color: 'rgba(22, 119, 255, 0.1)' },
-        text: { color: '#1677ff', size: 12, family: 'sans-serif', weight: 'normal' }
-      }
-    };
-  }
-  return {
-    grid: { horizontal: { color: '#2a2e35', style: 'solid' as const, size: 1 }, vertical: { color: '#2a2e35', style: 'solid' as const, size: 1 } },
-    candle: {
-      type: 'candle_solid' as const,
-      bar: { upColor: '#ef4444', downColor: '#22c55e', noChangeColor: '#888', upBorderColor: '#ef4444', downBorderColor: '#22c55e', noChangeBorderColor: '#888', upWickColor: '#ef4444', downWickColor: '#22c55e', noChangeWickColor: '#888' },
-      priceMark: { high: { show: true, color: '#ef4444', textSize: 10 }, low: { show: true, color: '#22c55e', textSize: 10 } },
-    },
-    xAxis: { axisLine: { color: '#4a4a4a', size: 1 }, tickText: { color: '#aaa', size: 11 } },
-    yAxis: { axisLine: { color: '#4a4a4a', size: 1 }, tickText: { color: '#aaa', size: 11 } },
-    separator: { color: '#2a2e35', size: 1 },
-    overlay: {
-      point: { color: '#30b0ff', borderColor: 'rgba(48, 176, 255, 0.35)', borderSize: 1, radius: 4, activeRadius: 6, activeColor: '#30b0ff', activeBorderColor: 'rgba(48, 176, 255, 0.5)' },
-      line: { color: '#30b0ff', size: 1.5, style: 'solid' },
-      rect: { borderColor: '#30b0ff', borderSize: 1.5, color: 'rgba(48, 176, 255, 0.1)' },
-      circle: { borderColor: '#30b0ff', borderSize: 1.5, color: 'rgba(48, 176, 255, 0.1)' },
-      polygon: { borderColor: '#30b0ff', borderSize: 1.5, color: 'rgba(48, 176, 255, 0.1)' },
-      text: { color: '#30b0ff', size: 12, family: 'sans-serif', weight: 'normal' }
-    }
-  };
-}
 
 export default KlineChartComponent;
