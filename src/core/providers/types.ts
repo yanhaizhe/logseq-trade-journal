@@ -42,9 +42,12 @@ export interface MarketDataProvider {
 export function detectMarket(symbol: string): MarketType {
   const s = symbol.toUpperCase().trim();
 
+  // 期货：字母前缀 + 数字（1-4位）如 RB2501 / IF2409
+  // 规则：不以SH/SZ开头，包含字母+数字组合
+  if (/^[A-Z]{1,3}\d{1,4}$/.test(s)) return 'futures';
+
   // A股：6位纯数字
   if (/^\d{6}$/.test(s)) {
-    // 上交所 60xxxx，深交所 00xxxx/30xxxx
     if (s.startsWith('60')) return 'ashare';
     if (s.startsWith('00') || s.startsWith('30')) return 'ashare';
     return 'ashare';

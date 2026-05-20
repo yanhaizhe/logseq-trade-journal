@@ -1,102 +1,69 @@
 /**
- * 数据路由调度器
- * 根据标的代码自动识别市场并路由到对应数据源
+ * 数据中心 —— 统一通过本地 Python 数据服务获取多市场数据
  *
- * 架构：
- *   A股/期货    → EastMoney（免费公开 API）
- *   加密货币     → Binance（免费公开 API）
- *   美股/港股    → Mock（需 API Key，暂用模拟数据）
- *   未知市场     → Mock（回退）
+ * 架构:
+ *   JS (浏览器) → HTTP → Python FastAPI → AKShare/Tushare/YFinance/CCXT
  *
- *   未来扩展：
- *   - ProxyProvider：连接本地 Python akshare/tushare 服务
- *   - YFinanceProvider：封装 yfinance（需代理）
+ * A股/期货:  AKShare → Tushare（备用）
+ * 美股/港股:  YFinance
+ * 加密货币:  CCXT (Binance)
  */
 
-import type { KLineData, Timeframe } from '@/types/chart';
-import type { MarketDataProvider, FetchRequest, FetchResult, MarketType } from './providers/types';
+import type { Timeframe } from '@/types/chart';
+import type { KLineData } from 'klinecharts';
+import type { FetchResult } from './providers/types';
 import { detectMarket } from './providers/types';
-import { EastMoneyProvider } from './providers/EastMoneyProvider';
-import { BinanceProvider } from './providers/BinanceProvider';
-import { MockProvider } from './providers/MockProvider';
+import { AKShareProvider } from './providers/AKShareProvider';
+import { IndexedDBCache } from './cache/IndexedDBCache';
 
 export class DataRouter {
-  private providers = new Map<MarketType, MarketDataProvider>();
-  private mockProvider: MockProvider;
-  private cache = new Map<string, { data: KLineData[]; ts: number }>();
-  private cacheTTL = 5 * 60 * 1000; // 5 分钟缓存
+  private provider = new AKShareProvider();
 
-  constructor() {
-    this.mockProvider = new MockProvider();
-
-    // 注册数据源
-    this.registerProvider('ashare', new EastMoneyProvider());
-    this.registerProvider('crypto', new BinanceProvider());
-    // 其他市场暂用 Mock
+  async checkAKShareHealth(): Promise<boolean> {
+    return this.provider.health();
   }
 
-  /** 注册自定义数据源 */
-  registerProvider(market: MarketType, provider: MarketDataProvider): void {
-    this.providers.set(market, provider);
+  async checkProvidersDetail(): Promise<Record<string, boolean>> {
+    return this.provider.healthDetail();
   }
 
-  /** 获取K线数据 */
-  async fetchKLine(
-    symbol: string,
-    timeframe: Timeframe,
-    limit: number = 200,
-  ): Promise<FetchResult> {
+  async fetchKLine(symbol: string, timeframe: Timeframe): Promise<FetchResult> {
     const market = detectMarket(symbol);
-    const cacheKey = `${symbol}_${timeframe}_${limit}`;
+    const code = normalize(symbol);
 
-    // 检查缓存
-    const cached = this.cache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < this.cacheTTL) {
-      return { data: cached.data, symbol, market };
+    // IndexedDB 缓存
+    const cached = await IndexedDBCache.getKLine(code, timeframe);
+    if (cached && cached.length > 50) {
+      return { data: cached, symbol: code, market };
     }
 
-    const provider = this.providers.get(market) ?? this.mockProvider;
-
-    const req: FetchRequest = { symbol, timeframe, market, limit };
-
-    try {
-      const result = await provider.fetchKLine(req);
-
-      // 缓存
-      this.cache.set(cacheKey, { data: result.data, ts: Date.now() });
-      // 限制缓存大小
-      if (this.cache.size > 100) {
-        const first = this.cache.keys().next().value;
-        if (first) this.cache.delete(first);
-      }
-
-      return result;
-    } catch (err) {
-      console.warn(`[DataRouter] ${provider.name} failed for ${symbol}, fallback to mock`);
-      // 回退到 Mock
-      return this.mockProvider.fetchKLine(req);
+    // 统一走 Python 数据服务（内部自动路由到对应 Provider）
+    const result = await this.provider.fetchKLine({ symbol: code, timeframe, market, limit: 300 });
+    if (result.data.length === 0) {
+      throw new Error(`无数据: ${code}`);
     }
+
+    await IndexedDBCache.setKLine(code, timeframe, result.data);
+    return result;
   }
 
-  /** 订阅实时行情（目前仅 Mock 支持） */
-  subscribe(
-    symbol: string,
-    timeframe: Timeframe,
-    callback: (data: KLineData) => void,
-  ): () => void {
-    return this.mockProvider.subscribe(symbol, timeframe, callback);
+  async getCached(symbol: string, timeframe: Timeframe): Promise<KLineData[]> {
+    const cached = await IndexedDBCache.getKLine(normalize(symbol), timeframe);
+    return cached ?? [];
   }
 
-  /** 清除所有缓存 */
-  clearCache(): void {
-    this.cache.clear();
+  async cleanCache(): Promise<void> {
+    await IndexedDBCache.cleanExpired();
   }
 }
 
-// 全局单例
-let _router: DataRouter | null = null;
+function normalize(s: string): string {
+  return s.toUpperCase().trim().replace(/^(SH|SZ)/, '');
+}
+
+let _instance: DataRouter | null = null;
 
 export function getDataRouter(): DataRouter {
-  if (!_router) _router = new DataRouter();
-  return _router;
+  if (!_instance) _instance = new DataRouter();
+  return _instance;
 }

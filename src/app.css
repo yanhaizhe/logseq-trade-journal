@@ -257,6 +257,75 @@
   cursor: pointer;
 }
 
+/* Tushare Token 设置 */
+.tushare-settings {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--tj-surface);
+  border: 1px solid var(--tj-border);
+  border-radius: var(--tj-radius);
+}
+
+.tushare-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tushare-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tj-text);
+}
+
+.tushare-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tushare-status.active {
+  background: #05966920;
+  color: #059669;
+}
+
+.tushare-status.inactive {
+  background: #9ca3af20;
+  color: #9ca3af;
+}
+
+.tushare-input-row input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--tj-border);
+  border-radius: 4px;
+  background: var(--tj-bg);
+  color: var(--tj-text);
+  font-size: 12px;
+  font-family: monospace;
+  outline: none;
+}
+
+.tushare-input-row input:focus {
+  border-color: var(--tj-accent);
+}
+
+.tushare-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--tj-muted);
+  line-height: 1.6;
+}
+
+.tushare-hint a {
+  color: var(--tj-accent);
+  text-decoration: none;
+}
+
 /* ==================== K线图 新版 ==================== */
 .chart-topbar {
   display: flex;
@@ -1261,7 +1330,7 @@ select.form-input {
 .info-right b.up { color: var(--tj-red); }
 .info-right b.down { color: var(--tj-green); }
 
-/* ==================== KLineChart Pro ==================== */
+/* ==================== KLineChart Pro Topbar ==================== */
 .pro-chart-wrapper {
   display: flex;
   flex-direction: column;
@@ -1269,16 +1338,126 @@ select.form-input {
   min-height: 0;
 }
 
-.pro-chart-info { flex-shrink: 0; }
-
-.pro-search-bar {
+.pro-chart-topbar {
   display: flex;
-  gap: 8px;
   align-items: center;
-  padding: 12px 16px;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--tj-surface);
+  border-bottom: 1px solid var(--tj-border);
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
+.pro-chart-topbar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbar-name { font-weight: 700; font-size: 15px; color: var(--tj-text); }
+.topbar-code { font-size: 12px; color: var(--tj-text-secondary); font-family: monospace; }
+.topbar-price { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.topbar-price.up { color: var(--tj-red); }
+.topbar-price.down { color: var(--tj-green); }
+.topbar-change { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.topbar-change.up { color: var(--tj-red); }
+.topbar-change.down { color: var(--tj-green); }
+.topbar-placeholder { font-size: 13px; color: var(--tj-text-secondary); }
+.topbar-loading { font-size: 13px; color: var(--tj-accent); }
+
+.pro-chart-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.topbar-input {
+  width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--tj-border);
+  border-radius: 4px;
+  background: var(--tj-bg);
+  color: var(--tj-text);
+  font-size: 13px;
+  font-family: monospace;
+  outline: none;
+}
+
+.topbar-input:focus { border-color: var(--tj-accent); }
+
+.topbar-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--tj-border);
+  border-radius: 4px;
+  background: var(--tj-bg);
+  color: var(--tj-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.topbar-btn:hover { background: var(--tj-surface); }
+.topbar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.topbar-btn.active { background: var(--tj-accent); color: #fff; border-color: var(--tj-accent); }
+
+.topbar-time { font-size: 11px; color: var(--tj-text-secondary); font-variant-numeric: tabular-nums; }
+
+/* AKShare 状态指示器 */
+.akshare-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.akshare-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.akshare-status.online {
+  background: rgba(5, 150, 105, 0.15);
+  color: #10b981;
+}
+.akshare-status.online .akshare-dot { background: #10b981; }
+
+.akshare-status.offline {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+.akshare-status.offline .akshare-dot { background: #9ca3af; }
+
+.akshare-status.checking {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+.akshare-status.checking .akshare-dot { background: #f59e0b; }
+
+.akshare-stop { color: #ef4444 !important; border-color: #ef444420 !important; }
+.akshare-stop:hover { background: #ef444420 !important; }
+
+.pro-chart-error {
+  padding: 8px 16px;
+  background: rgba(239,68,68,0.1);
+  color: var(--tj-red);
+  font-size: 12px;
+  border-bottom: 1px solid var(--tj-border);
+}
+
+/* 图表容器 */
 .pro-chart-container {
   flex: 1;
   min-height: 400px;
+  background: #1a1a2e;
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
 }

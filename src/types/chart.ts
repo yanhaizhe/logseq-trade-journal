@@ -1,17 +1,9 @@
 /**
  * K线图表相关类型定义
+ * KLineData 直接复用 klinecharts 的类型，保持兼容
  */
 
-/** 单根 K 线数据 */
-export interface KLineData {
-  timestamp: number;    // Unix 毫秒时间戳
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  turnover?: number;    // 成交额（可选）
-}
+export type { KLineData } from 'klinecharts';
 
 /** K线周期 */
 export type Timeframe = '1m' | '5m' | '15m' | '30m' | '1H' | '4H' | '1D' | '1W' | '1M';

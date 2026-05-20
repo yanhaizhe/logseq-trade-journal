@@ -1,91 +1,54 @@
 /**
- * CustomDatafeed - 将 DataRouter 适配为 KLineChart Pro 的 Datafeed 接口
+ * CustomDatafeed —— 适配 KLineChart Pro Datafeed 接口（Tushare 专用）
+ * 注意：当前 ProChart 使用内联 datafeed，此类保留作备用
  */
 
-import type { Datafeed, SymbolInfo, Period } from '@klinecharts/pro';
 import type { KLineData } from 'klinecharts';
-import { getDataRouter } from '@/core/DataRouter';
-import { detectMarket, timeframeToPeriod } from '@/core/providers/types';
+import type { Datafeed, SymbolInfo, Period } from '@klinecharts/pro';
 import type { Timeframe } from '@/types/chart';
-
-const router = getDataRouter();
-
-/** Period → Timeframe 反向映射 */
-function periodToTimeframe(period: Period): Timeframe {
-  const key = `${period.multiplier}${period.timespan}`;
-  const map: Record<string, Timeframe> = {
-    '1minute': '1m', '5minute': '5m', '15minute': '15m', '30minute': '30m',
-    '60minute': '1H', '240minute': '4H', '1day': '1D', '1week': '1W', '1month': '1M',
-  };
-  return map[key] ?? '1D';
-}
-
-/** 获取时间范围（默认 300 根K线） */
-function getTimeRange(period: Period): { from: number; to: number } {
-  const ms = period.multiplier;
-  const unit = period.timespan;
-  let intervalMs: number;
-
-  switch (unit) {
-    case 'minute': intervalMs = ms * 60 * 1000; break;
-    case 'hour': intervalMs = ms * 3600 * 1000; break;
-    case 'day': intervalMs = ms * 86400 * 1000; break;
-    case 'week': intervalMs = ms * 7 * 86400 * 1000; break;
-    case 'month': intervalMs = ms * 30 * 86400 * 1000; break;
-    default: intervalMs = 86400 * 1000;
-  }
-
-  return { from: Date.now() - intervalMs * 300, to: Date.now() };
-}
+import { getDataRouter } from './DataRouter';
 
 export class CustomDatafeed implements Datafeed {
-  async searchSymbols(search?: string): Promise<SymbolInfo[]> {
-    if (!search?.trim()) return [];
-    const s = search.toUpperCase().trim();
-    const market = detectMarket(s);
+  private dataRouter = getDataRouter();
 
-    return [{
-      ticker: s,
-      name: s,
-      shortName: s,
-      exchange: marketLabel(market),
-      market: market,
-      pricePrecision: 2,
-      volumePrecision: 0,
-      priceCurrency: market === 'crypto' ? 'USDT' : 'CNY',
-      type: 'stock',
-    }];
+  async searchSymbols(search?: string): Promise<SymbolInfo[]> {
+    const ticker = search?.trim() || '000001';
+    return [
+      {
+        ticker,
+        name: ticker,
+        shortName: ticker,
+        exchange: ticker.startsWith('60') ? 'SH' : 'SZ',
+        market: 'stocks',
+        pricePrecision: 2,
+        volumePrecision: 0,
+        priceCurrency: 'CNY',
+        type: 'stock',
+      },
+    ];
   }
 
-  async getHistoryKLineData(
-    symbol: SymbolInfo,
-    period: Period,
-    from: number,
-    to: number,
-  ): Promise<KLineData[]> {
+  async getHistoryKLineData(symbol: SymbolInfo, period: Period): Promise<KLineData[]> {
+    const tf: Timeframe = periodToTimeframe(period) as Timeframe;
     try {
-      const tf = periodToTimeframe(period);
-      const result = await router.fetchKLine(symbol.ticker, tf, 300);
+      const result = await this.dataRouter.fetchKLine(symbol.ticker, tf);
       return result.data;
     } catch {
       return [];
     }
   }
 
-  subscribe(symbol: SymbolInfo, period: Period, callback: (data: KLineData) => void): void {
-    // 实时订阅（当前用 mock 模拟）
-    const tf = periodToTimeframe(period);
-    router.subscribe(symbol.ticker, tf, callback);
-  }
-
-  unsubscribe(_symbol: SymbolInfo, _period: Period): void {
-    // no-op for now
-  }
+  subscribe(): void {}
+  unsubscribe(): void {}
 }
 
-function marketLabel(m: string): string {
-  const map: Record<string, string> = {
-    ashare: 'A股', us: '美股', hk: '港股', crypto: '加密', futures: '期货',
-  };
-  return map[m] ?? m;
+function periodToTimeframe(period: Period): string {
+  if (period.timespan === 'minute') {
+    if (period.multiplier >= 240) return '4H';
+    if (period.multiplier >= 60) return '1H';
+    return `${period.multiplier}m`;
+  }
+  if (period.timespan === 'week') return '1W';
+  if (period.timespan === 'month') return '1M';
+  return '1D';
 }

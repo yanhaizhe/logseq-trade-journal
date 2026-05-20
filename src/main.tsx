@@ -87,6 +87,7 @@ function main() {
   const dbService = new LogseqDBService();
   tradeManager = new TradeManager(dbService);
 
+
   // 暴露 tradeManager 给 App 组件
   if (typeof window !== 'undefined') {
     (window as any).__tradeManager = tradeManager;

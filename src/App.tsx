@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import ProChart from '@/components/KlineChart/ProChart';
+import KlineChartComponent from '@/components/KlineChart/KlineChart';
 import TradeForm from '@/components/TradeForm/TradeForm';
 import DailyReview from '@/components/Review/DailyReview';
 import { useAppStore } from '@/store';
@@ -41,10 +41,8 @@ const App: React.FC = () => {
   const loadChart = useCallback((sym: string) => {
     if (!sym.trim()) return;
     setChartConfig({ symbol: sym.toUpperCase() });
-    const data = dataService.generateMockData(sym, chartConfig.timeframe);
-    setChartData(data);
     setMode('kline');
-  }, [chartConfig.timeframe, setChartConfig, setChartData, setMode]);
+  }, [setChartConfig, setMode]);
 
   // 处理 CSV 文件加载
   const handleCSVLoad = useCallback(async (file: File) => {
@@ -347,7 +345,7 @@ const App: React.FC = () => {
             <div className="quick-symbol">
               <input
                 type="text"
-                placeholder="输入标的代码，快速查看K线..."
+                placeholder="A股:000001 / 美股:AAPL / 加密:BTCUSDT"
                 value={symbol}
                 onChange={e => setSymbol(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && loadChart(symbol)}
@@ -360,7 +358,7 @@ const App: React.FC = () => {
         {/* K线图模式 */}
         {mode === 'kline' && (
           <div className="kline-view">
-            <ProChart symbol={chartConfig.symbol} height={520} />
+            <KlineChartComponent symbol={chartConfig.symbol} height={520} />
           </div>
         )}
 

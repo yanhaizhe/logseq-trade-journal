@@ -159,7 +159,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
         change: last.close - prev.close,
         changePct: prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0,
         open: last.open, high: last.high, low: last.low,
-        volume: last.volume, turnover: last.turnover ?? 0,
+        volume: last.volume ?? 0, turnover: (last as any).turnover ?? 0,
       };
       setInstrumentInfo(info);
 
