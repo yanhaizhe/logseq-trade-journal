@@ -68,6 +68,7 @@ async def health():
 @app.get("/kline", response_model=KLineResponse)
 async def get_kline(
     symbol: str = Query(..., description="标的代码"),
+    market: str = Query(None, description="市场类型"),
     period: str = Query("daily", description="周期"),
     limit: int = Query(300, ge=1, le=2000),
     adjust: str = Query("qfq"),
@@ -75,7 +76,7 @@ async def get_kline(
     if not router:
         raise HTTPException(503, "服务未就绪")
 
-    req = KLineRequest(symbol=symbol.strip(), period=period, limit=limit, adjust=adjust)
+    req = KLineRequest(symbol=symbol.strip(), market=market, period=period, limit=limit, adjust=adjust)
     try:
         return await router.fetch_kline(req)
     except ValueError as e:

@@ -99,6 +99,13 @@ const HOT_SYMBOLS: Record<string, Array<{ symbol: string; name: string; market: 
     { symbol: "AUD/USD", name: "澳元/美元", market: "forex" },
     { symbol: "USD/CAD", name: "美元/加元", market: "forex" },
   ],
+  futures: [
+    { symbol: "GC", name: "COMEX黄金", market: "futures" },
+    { symbol: "CL", name: "WTI原油", market: "futures" },
+    { symbol: "NQ", name: "纳斯达克100期货", market: "futures" },
+    { symbol: "RB", name: "螺纹钢", market: "futures" },
+    { symbol: "I", name: "铁矿石", market: "futures" },
+  ],
 };
 
 const KlineChartComponent: React.FC<KlineChartProps> = ({
@@ -186,7 +193,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
       const prices: Record<string, { price: number; changePct: number }> = {};
       await Promise.all(watchlist.map(async (item) => {
         try {
-          const response = await fetch(`http://127.0.0.1:8765/kline?symbol=${encodeURIComponent(item.symbol)}&period=daily&limit=2`);
+          const response = await fetch(`http://127.0.0.1:8765/kline?symbol=${encodeURIComponent(item.symbol)}&market=${item.market}&period=daily&limit=2`);
           if (response.ok) {
             const res = await response.json();
             if (res.data && res.data.length > 0) {
@@ -865,6 +872,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
                   { id: 'hk', label: 'H股' },
                   { id: 'crypto', label: '加密货币' },
                   { id: 'forex', label: '外汇' },
+                  { id: 'futures', label: '期货' },
                 ].map(tab => (
                   <button
                     key={tab.id}

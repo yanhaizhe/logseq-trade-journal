@@ -110,7 +110,7 @@ class DataRouter:
         return "unknown"
 
     async def fetch_kline(self, req: KLineRequest) -> KLineResponse:
-        market = self.detect_market(req.symbol)
+        market = req.market if req.market else self.detect_market(req.symbol)
         if market == "ashare":
             return await self._ashare_chain(req)
         elif market == "futures":
@@ -181,6 +181,15 @@ class DataRouter:
                                      period=req.period, count=len(data), data=data)
         except Exception as e:
             logger.warning(f"[route] AKShare 期货失败: {e}")
+
+        # Global futures (e.g., GC, CL) via YFinance
+        try:
+            data = await self.yfinance.fetch_kline(req)
+            if data:
+                return KLineResponse(symbol=req.symbol, market="futures", provider="yfinance",
+                                     period=req.period, count=len(data), data=data)
+        except Exception as e:
+            logger.warning(f"[route] YFinance 期货失败: {e}")
 
         if self.tushare:
             try:

@@ -16,6 +16,7 @@ class KLineItem(BaseModel):
 class KLineRequest(BaseModel):
     """K 线请求"""
     symbol: str = Field(..., description="标的代码，如 000001.SZ / BTC/USDT:binance")
+    market: Optional[str] = Field(default=None, description="市场类型")
     period: str = Field(default="daily", description="周期: 1min/5min/15min/30min/60min/daily/weekly/monthly")
     limit: int = Field(default=300, ge=1, le=2000)
     adjust: str = Field(default="qfq", description="复权: qfq/hfq/None")

@@ -93,6 +93,9 @@ export class AKShareProvider implements MarketDataProvider {
       limit: String(Math.min(req.limit ?? 300, 800)),
       adjust: 'qfq',
     });
+    if (req.market) {
+      params.append('market', req.market);
+    }
 
     const resp = await fetch(`${this.baseUrl}/kline?${params}`, {
       signal: AbortSignal.timeout(this.timeout),

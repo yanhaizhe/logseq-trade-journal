@@ -21,7 +21,7 @@ class YFinanceProvider(BaseProvider):
     async def fetch_kline(self, req: KLineRequest) -> list[KLineItem]:
         import yfinance as yf
 
-        symbol = self._clean_symbol(req.symbol)
+        symbol = self._clean_symbol(req.symbol, req.market)
         interval = self.PERIOD_MAP.get(req.period, "1d")
         period = self._period_for_interval(interval)
 
@@ -42,9 +42,13 @@ class YFinanceProvider(BaseProvider):
             ))
         return items
 
-    def _clean_symbol(self, symbol: str) -> str:
+    def _clean_symbol(self, symbol: str, market: Optional[str] = None) -> str:
         """美股符号清理"""
         s = symbol.strip().upper()
+        
+        if market == "futures" and not s.endswith("=F"):
+            return f"{s}=F"
+            
         # yfinance 港股格式: 0700.HK
         if s.endswith(".HK"):
             return s
