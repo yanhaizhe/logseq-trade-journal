@@ -7,6 +7,7 @@ import type { InstrumentInfo } from '@/types/trade';
 import { formatMoney, formatPercent } from '@/utils/format';
 import { StudyLab } from './StudyLab';
 import { TradingNotes } from './TradingNotes';
+import { useAppStore } from '@/store';
 
 const dataRouter = getDataRouter();
 
@@ -107,6 +108,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const proChartRef = useRef<KLineChartPro | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isVisible = useAppStore(state => state.isVisible);
 
   const [currentSymbol, setCurrentSymbol] = useState(initialSymbol);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
@@ -136,6 +138,22 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
   });
   const [watchlistPrices, setWatchlistPrices] = useState<Record<string, { price: number; changePct: number }>>({});
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
+        return;
+      }
+      if (e.ctrlKey && e.code === 'Space') {
+        e.preventDefault();
+        setActiveTab(prev => prev === 'study' ? 'trading' : 'study');
+        if (!isSidebarOpen) setIsSidebarOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSidebarOpen]);
+
+
   // Add modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeMarketTab, setActiveMarketTab] = useState<string>('ashare');
@@ -160,10 +178,11 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
   // Background fetch prices for all watchlist items
   useEffect(() => {
     localStorage.setItem('tj_watchlist', JSON.stringify(watchlist));
-    if (watchlist.length === 0) return;
+    if (watchlist.length === 0 || !isVisible) return;
 
     let isMounted = true;
     const fetchWatchlistPrices = async () => {
+      if (!isVisible) return;
       const prices: Record<string, { price: number; changePct: number }> = {};
       await Promise.all(watchlist.map(async (item) => {
         try {
@@ -198,7 +217,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
       isMounted = false;
       clearInterval(timer);
     };
-  }, [watchlist]);
+  }, [watchlist, isVisible]);
 
   // Handle Search API calls
   const handleSearch = async () => {
@@ -224,6 +243,12 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
       setSearchResults([]);
     }
   }, [activeMarketTab, searchQuery]);
+
+  useEffect(() => {
+    if (currentSymbol) {
+      localStorage.setItem('tj_last_symbol', currentSymbol);
+    }
+  }, [currentSymbol]);
 
   const toggleWatchlist = (item: { symbol: string; name: string; market: string }) => {
     setWatchlist(prev => {
@@ -368,7 +393,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
   // Handle dynamic simulation data generation for Order Book and Recent Trades
   useEffect(() => {
-    if (!currentPrice) return;
+    if (!currentPrice || !isVisible) return;
 
     // Helper to generate initial depth / order book
     const step = Math.max(0.01, parseFloat((currentPrice * 0.00015).toFixed(decimals + 1)));
@@ -472,7 +497,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
       clearInterval(orderBookTimer);
       clearInterval(tradeTimer);
     };
-  }, [currentPrice, currentSymbol]);
+  }, [currentPrice, currentSymbol, isVisible]);
 
   // Canvas drawing for Depth Chart
   useEffect(() => {
@@ -807,6 +832,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
                     currentPeriod={currentPeriod}
                     currentPrice={currentPrice}
                     onSelectSymbol={handleSelectSymbol}
+                    proChart={proChartRef.current}
                   />
                 )}
               </div>

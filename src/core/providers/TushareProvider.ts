@@ -201,8 +201,9 @@ function normalizeSymbol(s: string): string {
   return s.toUpperCase().trim().replace(/^(SH|SZ)/, '');
 }
 
-/** A股 → Tushare ts_code: 000001 → 000001.SZ */
+/** A股 → Tushare ts_code: 000001 → 000001.SH (上证指数) / 其他 00/30 开头为 .SZ */
 function tushareStockCode(code: string): string {
+  if (code === '000001') return `${code}.SH`;
   if (code.startsWith('60')) return `${code}.SH`;
   if (code.startsWith('00') || code.startsWith('30')) return `${code}.SZ`;
   return `${code}.SH`;

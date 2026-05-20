@@ -33,6 +33,7 @@ const App: React.FC = () => {
     trades, setTrades,
     loading, setLoading,
     error, setError,
+    isVisible, setIsVisible,
   } = useAppStore();
 
   const [symbol, setSymbol] = useState('');
@@ -73,7 +74,7 @@ const App: React.FC = () => {
         patterns: [],
       };
       setTrades([mockTrade, ...trades]);
-      setMode('idle');
+      setMode('kline');
 
       // 通知宿主
       window.parent?.postMessage({ type: 'trade-saved', trade: mockTrade }, '*');
@@ -85,7 +86,7 @@ const App: React.FC = () => {
     try {
       const trade = await tm.recordTrade(input);
       setTrades([trade, ...trades]);
-      setMode('idle');
+      setMode('kline');
       window.parent?.postMessage({ type: 'trade-saved', trade }, '*');
       setError(null);
     } catch (e) {
@@ -159,12 +160,15 @@ const App: React.FC = () => {
             loadDailyReview();
           }
           break;
+        case 'visibility-changed':
+          setIsVisible(!!msg.visible);
+          break;
       }
     };
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [loadDailyReview, setMode]);
+  }, [loadDailyReview, setMode, setIsVisible]);
 
   // 窗口拖拽移动
   const handleMoveStart = useCallback((e: React.MouseEvent) => {
@@ -250,24 +254,6 @@ const App: React.FC = () => {
       {/* 导航栏（可拖动窗口） */}
       <nav className="app-nav" onMouseDown={handleMoveStart}>
         <span className="nav-drag-hint">⋮⋮</span>
-        <button
-          className={`nav-btn ${mode === 'kline' ? 'active' : ''}`}
-          onClick={() => setMode('kline')}
-        >
-          📊 K线图
-        </button>
-        <button
-          className={`nav-btn ${mode === 'trade' ? 'active' : ''}`}
-          onClick={() => setMode('trade')}
-        >
-          📝 记交易
-        </button>
-        <button
-          className={`nav-btn ${mode === 'review' ? 'active' : ''}`}
-          onClick={loadDailyReview}
-        >
-          🔍 复盘
-        </button>
 
         {/* 恢复默认大小 */}
         <button
@@ -367,7 +353,7 @@ const App: React.FC = () => {
           <div className="trade-view">
             <TradeForm
               onSubmit={handleTradeSubmit}
-              onCancel={() => setMode('idle')}
+              onCancel={() => setMode('kline')}
             />
           </div>
         )}

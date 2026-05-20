@@ -31,9 +31,19 @@ class SinaProvider(BaseProvider):
     KLINE_URL = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
 
     async def fetch_kline(self, req: KLineRequest) -> list[KLineItem]:
-        code = self._clean_code(req.symbol)
+        symbol = req.symbol.strip().upper()
+        code = self._clean_code(symbol)
         scale = self.SCALE_MAP.get(req.period, 240)
-        prefix = "sh" if code.startswith("60") else "sz"
+        
+        if "SH" in symbol or "SS" in symbol:
+            prefix = "sh"
+        elif "SZ" in symbol:
+            prefix = "sz"
+        else:
+            if code == "000001":
+                prefix = "sh"
+            else:
+                prefix = "sh" if (code.startswith("60") or code.startswith("688") or code.startswith("900") or code.startswith("5")) else "sz"
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(

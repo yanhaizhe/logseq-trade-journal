@@ -26,6 +26,8 @@ interface AppState {
   loading: boolean;
   /** 错误信息 */
   error: string | null;
+  /** 面板是否可见 */
+  isVisible: boolean;
 
   // Actions
   setMode: (mode: AppMode) => void;
@@ -36,11 +38,19 @@ interface AppState {
   setTrades: (trades: TradeRecord[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setIsVisible: (visible: boolean) => void;
   reset: () => void;
 }
 
+const getLastSymbol = (): string => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('tj_last_symbol') || '000001';
+  }
+  return '000001';
+};
+
 const defaultChartConfig: ChartConfig = {
-  symbol: '',
+  symbol: getLastSymbol(),
   timeframe: '1D',
   indicators: ['MA', 'VOLUME'],
   theme: 'dark',
@@ -48,7 +58,7 @@ const defaultChartConfig: ChartConfig = {
 };
 
 export const useAppStore = create<AppState>((set) => ({
-  mode: 'idle',
+  mode: 'kline',
   chartData: [],
   chartConfig: defaultChartConfig,
   tradeInput: {},
@@ -56,26 +66,35 @@ export const useAppStore = create<AppState>((set) => ({
   trades: [],
   loading: false,
   error: null,
+  isVisible: true,
 
   setMode: (mode) => set({ mode }),
   setChartData: (data) => set({ chartData: data }),
   setChartConfig: (config) =>
-    set((state) => ({ chartConfig: { ...state.chartConfig, ...config } })),
+    set((state) => {
+      const newConfig = { ...state.chartConfig, ...config };
+      if (typeof window !== 'undefined' && config.symbol) {
+        localStorage.setItem('tj_last_symbol', config.symbol);
+      }
+      return { chartConfig: newConfig };
+    }),
   setTradeInput: (input) =>
     set((state) => ({ tradeInput: { ...state.tradeInput, ...input } })),
   setDailyStats: (stats) => set({ dailyStats: stats }),
   setTrades: (trades) => set({ trades }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+  setIsVisible: (visible) => set({ isVisible: visible }),
   reset: () =>
     set({
-      mode: 'idle',
+      mode: 'kline',
       chartData: [],
-      chartConfig: defaultChartConfig,
+      chartConfig: { ...defaultChartConfig, symbol: getLastSymbol() },
       tradeInput: {},
       dailyStats: null,
       trades: [],
       loading: false,
       error: null,
+      isVisible: true,
     }),
 }));

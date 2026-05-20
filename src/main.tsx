@@ -104,6 +104,10 @@ function main() {
   // 渲染主 UI（App 组件）
   renderApp();
 
+  logseq.on('ui:visible:changed', ({ visible }) => {
+    postToApp({ type: 'visibility-changed', visible });
+  });
+
   logseq.showMainUI();
   console.info(`[${PLUGIN_ID}] initialized`);
 }

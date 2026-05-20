@@ -36,6 +36,8 @@ class TushareProvider(BaseProvider):
         if "." in s:
             return s
         if re.match(r'^\d{6}$', s):
+            if s == "000001":
+                return "000001.SH"
             if s.startswith("60"):
                 return f"{s}.SH"
             elif s.startswith("00") or s.startswith("30"):

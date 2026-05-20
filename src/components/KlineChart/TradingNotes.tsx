@@ -6,6 +6,7 @@ interface TradingNotesProps {
   currentPeriod: string;
   currentPrice: number;
   onSelectSymbol: (symbol: string) => void;
+  proChart?: any;
 }
 
 const PRESET_PATTERNS = [
@@ -35,10 +36,12 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
   currentPeriod,
   currentPrice,
   onSelectSymbol,
+  proChart,
 }) => {
   const [logs, setLogs] = useState<TradeLog[]>([]);
   const [filter, setFilter] = useState<'all' | 'observe' | 'plan' | 'active' | 'closed'>('all');
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
 
   // Form states
@@ -107,10 +110,88 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
     loadLogs();
   }, [tm]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Avoid triggering when user is typing in inputs
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
+        return;
+      }
+      if (e.key === 'Escape') {
+        const ls = (window as any).logseq;
+        if (ls) ls.hideMainUI();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const saveLogsToStorage = (updated: TradeLog[]) => {
     setLogs(updated);
     if (!tm) {
       localStorage.setItem('tj_trade_logs', JSON.stringify(updated));
+    }
+  };
+
+  const handleLocateAndDraw = (log: TradeLog) => {
+    onSelectSymbol(log.symbol);
+    const chart = proChart?._chartApi;
+    if (chart) {
+      chart.removeOverlay();
+      if (log.planPrice) {
+        if (log.planPrice.entry) {
+          chart.createOverlay({
+            name: 'priceLine',
+            extendData: 'Entry',
+            points: [{ value: log.planPrice.entry }],
+            styles: { line: { color: '#2962FF' }, text: { color: '#ffffff', backgroundColor: '#2962FF' } }
+          });
+        }
+        if (log.planPrice.sl) {
+          chart.createOverlay({
+            name: 'priceLine',
+            extendData: 'SL',
+            points: [{ value: log.planPrice.sl }],
+            styles: { line: { color: '#F23645' }, text: { color: '#ffffff', backgroundColor: '#F23645' } }
+          });
+        }
+        if (log.planPrice.tp) {
+          chart.createOverlay({
+            name: 'priceLine',
+            extendData: 'TP',
+            points: [{ value: log.planPrice.tp }],
+            styles: { line: { color: '#089981' }, text: { color: '#ffffff', backgroundColor: '#089981' } }
+          });
+        }
+      }
+      if (log.status === 'closed' && log.exit.actualExit) {
+        chart.createOverlay({
+          name: 'priceLine',
+          extendData: '实际离场',
+          points: [{ value: log.exit.actualExit }],
+          styles: { line: { color: '#E2B93B', style: 'dashed' }, text: { color: '#000', backgroundColor: '#E2B93B' } }
+        });
+      }
+    }
+  };
+
+  const handleScreenshot = async (log: TradeLog) => {
+    const chart = proChart?._chartApi;
+    if (chart && tm) {
+      try {
+        const base64Url = chart.getConvertPictureUrl(true, 'jpeg', '#1e1e2e');
+        const ls = (window as any).logseq;
+        if (ls) {
+          const block = await ls.Editor.getBlock(log.id);
+          if (block) {
+            await ls.Editor.updateBlock(log.id, block.content + `\n![Chart Snapshot](${base64Url})`);
+            ls.App.showMsg('✅ 图表快照已成功插入 Logseq 笔记！');
+          }
+        }
+      } catch (e) {
+        console.error('Screenshot failed:', e);
+        const ls = (window as any).logseq;
+        if (ls) ls.App.showMsg('❌ 图表快照失败', 'error');
+      }
     }
   };
 
@@ -346,6 +427,14 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
   const totalR = closedLogs.reduce((acc, l) => acc + l.exit.rValue, 0);
   const expectancy = closedLogs.length > 0 ? totalR / closedLogs.length : 0;
 
+  // Additional Dashboard Metrics
+  const sumRR = closedLogs.reduce((acc, l) => acc + (l.planPrice?.ratio || 0), 0);
+  const avgRR = closedLogs.length > 0 ? (sumRR / closedLogs.length) : 0;
+  
+  // Discipline metrics
+  const sumDiscipline = closedLogs.reduce((acc, l) => acc + (l.review?.disciplineRating || 0), 0);
+  const avgDiscipline = closedLogs.length > 0 ? (sumDiscipline / closedLogs.length) : 0;
+
   const filteredLogs = logs.filter(log => {
     if (filter === 'all') return true;
     return log.status === filter;
@@ -353,22 +442,54 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
 
   return (
     <div className="tj-trading-notes">
-      {/* 绩效小看板 */}
-      <div className="performance-banner">
-        <div className="banner-item">
-          <span className="label">已结清</span>
-          <span className="value">{closedLogs.length} 笔</span>
+      {/* 专业绩效仪表盘 */}
+      <div className="performance-dashboard-container">
+        <div 
+          className="dashboard-header" 
+          onClick={() => setShowDashboard(!showDashboard)}
+          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1e1e2e', padding: '10px 15px', borderRadius: '8px', marginBottom: showDashboard ? '0' : '10px' }}
+        >
+          <strong style={{ color: '#fff' }}>📊 交易绩效仪表盘 (Dashboard)</strong>
+          <span style={{ color: '#888' }}>{showDashboard ? '▲' : '▼'}</span>
         </div>
-        <div className="banner-item">
-          <span className="label">系统期望值</span>
-          <span className={`value ${expectancy >= 0 ? 'up' : 'down'}`}>
-            {expectancy.toFixed(2)} R
-          </span>
-        </div>
-        <div className="banner-item">
-          <span className="label">交易胜率</span>
-          <span className="value">{winRate.toFixed(1)}%</span>
-        </div>
+        
+        {showDashboard && (
+          <div className="dashboard-body" style={{ backgroundColor: '#25263a', padding: '15px', borderRadius: '0 0 8px 8px', marginBottom: '15px', borderTop: '1px solid #333' }}>
+            <div className="performance-banner" style={{ borderBottom: 'none', padding: 0, marginBottom: '15px' }}>
+              <div className="banner-item">
+                <span className="label">已结清</span>
+                <span className="value">{closedLogs.length} 笔</span>
+              </div>
+              <div className="banner-item">
+                <span className="label">系统期望值(R)</span>
+                <span className={`value ${expectancy >= 0 ? 'up' : 'down'}`}>
+                  {expectancy.toFixed(2)} R
+                </span>
+              </div>
+              <div className="banner-item">
+                <span className="label">总盈亏(R)</span>
+                <span className={`value ${totalR >= 0 ? 'up' : 'down'}`}>
+                  {totalR.toFixed(2)} R
+                </span>
+              </div>
+              <div className="banner-item">
+                <span className="label">交易胜率</span>
+                <span className="value">{winRate.toFixed(1)}%</span>
+              </div>
+            </div>
+
+            <div className="dashboard-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="stat-card" style={{ backgroundColor: '#1e1e2e', padding: '10px', borderRadius: '6px' }}>
+                <div style={{ color: '#888', fontSize: '12px' }}>平均计划盈亏比 (R:R)</div>
+                <div style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>1 : {avgRR.toFixed(2)}</div>
+              </div>
+              <div className="stat-card" style={{ backgroundColor: '#1e1e2e', padding: '10px', borderRadius: '6px' }}>
+                <div style={{ color: '#888', fontSize: '12px' }}>平均纪律评分 (1-5)</div>
+                <div style={{ color: '#E2B93B', fontSize: '18px', fontWeight: 'bold' }}>{'⭐'.repeat(Math.round(avgDiscipline))} ({avgDiscipline.toFixed(1)})</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 头部控制器 */}
@@ -724,25 +845,34 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
 
               {/* CARD ACTIONS */}
               <div className="card-actions">
-                <button className="action-btn-neutral" onClick={() => onSelectSymbol(log.symbol)}>
-                  🎯 定位图表
+                <button className="action-btn-neutral" onClick={() => handleLocateAndDraw(log)}>
+                  🎯 标注并定位图表
                 </button>
 
                 {tm && (
-                  <button
-                    className="action-btn-neutral"
-                    title="在 Logseq 编辑器中打开该笔记块"
-                    onClick={() => {
-                      try {
-                        (window as any).logseq?.App?.pushState('page', { uuid: log.id });
-                        (window as any).logseq?.hideMainUI();
-                      } catch (e) {
-                        console.error('Failed to navigate in Logseq:', e);
-                      }
-                    }}
-                  >
-                    📖 笔记
-                  </button>
+                  <>
+                    <button
+                      className="action-btn-neutral"
+                      onClick={() => handleScreenshot(log)}
+                      title="截取当前图表保存至该Logseq笔记中"
+                    >
+                      📸 截图存笔记
+                    </button>
+                    <button
+                      className="action-btn-neutral"
+                      title="在 Logseq 编辑器中打开该笔记块"
+                      onClick={() => {
+                        try {
+                          (window as any).logseq?.App?.pushState('page', { uuid: log.id });
+                          (window as any).logseq?.hideMainUI();
+                        } catch (e) {
+                          console.error('Failed to navigate in Logseq:', e);
+                        }
+                      }}
+                    >
+                      📖 打开笔记
+                    </button>
+                  </>
                 )}
 
                 {log.status === 'observe' && (
