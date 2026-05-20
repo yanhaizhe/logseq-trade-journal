@@ -294,3 +294,159 @@ class DataRouter:
                 logger.warning(f"获取 美股/港股 名称失败 {symbol}: {e}")
                 
         return {"symbol": symbol, "name": name, "market": market}
+
+    async def search_symbols(self, q: str, market: Optional[str] = None) -> list[dict]:
+        q = q.strip().upper()
+        if not q:
+            return []
+            
+        results = []
+        
+        # 1) Search in local static hot symbols list first
+        hot_list = [
+            # A股
+            {"symbol": "600519", "name": "贵州茅台", "market": "ashare", "exchange": "SH"},
+            {"symbol": "600036", "name": "招商银行", "market": "ashare", "exchange": "SH"},
+            {"symbol": "601318", "name": "中国平安", "market": "ashare", "exchange": "SH"},
+            {"symbol": "600900", "name": "长江电力", "market": "ashare", "exchange": "SH"},
+            {"symbol": "601899", "name": "紫金矿业", "market": "ashare", "exchange": "SH"},
+            # 美股
+            {"symbol": "AAPL", "name": "Apple Inc.", "market": "us", "exchange": "NASDAQ"},
+            {"symbol": "TSLA", "name": "Tesla Inc.", "market": "us", "exchange": "NASDAQ"},
+            {"symbol": "NVDA", "name": "NVIDIA Corp.", "market": "us", "exchange": "NASDAQ"},
+            {"symbol": "MSFT", "name": "Microsoft Corp.", "market": "us", "exchange": "NASDAQ"},
+            {"symbol": "AMZN", "name": "Amazon.com Inc.", "market": "us", "exchange": "NASDAQ"},
+            # H股
+            {"symbol": "00700.HK", "name": "腾讯控股", "market": "hk", "exchange": "HKEX"},
+            {"symbol": "03690.HK", "name": "美团-W", "market": "hk", "exchange": "HKEX"},
+            {"symbol": "09988.HK", "name": "阿里巴巴-W", "market": "hk", "exchange": "HKEX"},
+            {"symbol": "01810.HK", "name": "小米集团-W", "market": "hk", "exchange": "HKEX"},
+            {"symbol": "09618.HK", "name": "京东集团-SW", "market": "hk", "exchange": "HKEX"},
+            # Crypto
+            {"symbol": "BTC/USDT", "name": "Bitcoin", "market": "crypto", "exchange": "Binance"},
+            {"symbol": "ETH/USDT", "name": "Ethereum", "market": "crypto", "exchange": "Binance"},
+            {"symbol": "SOL/USDT", "name": "Solana", "market": "crypto", "exchange": "Binance"},
+            {"symbol": "BNB/USDT", "name": "BNB", "market": "crypto", "exchange": "Binance"},
+            {"symbol": "DOGE/USDT", "name": "Dogecoin", "market": "crypto", "exchange": "Binance"},
+            # Forex
+            {"symbol": "EUR/USD", "name": "欧元/美元", "market": "forex", "exchange": "FX"},
+            {"symbol": "USD/JPY", "name": "美元/日元", "market": "forex", "exchange": "FX"},
+            {"symbol": "GBP/USD", "name": "英镑/美元", "market": "forex", "exchange": "FX"},
+            {"symbol": "AUD/USD", "name": "澳元/美元", "market": "forex", "exchange": "FX"},
+            {"symbol": "USD/CAD", "name": "美元/加元", "market": "forex", "exchange": "FX"},
+        ]
+        
+        # Check exact symbol match or partial match in static list
+        seen = set()
+        for item in hot_list:
+            if q in item["symbol"].upper() or q in item["name"].upper():
+                if market and item["market"] != market:
+                    continue
+                results.append(item)
+                seen.add(item["symbol"])
+                
+        # 2) Live search via Sina suggestion for A-shares
+        if not market or market == "ashare":
+            import httpx
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    resp = await client.get(
+                        f"https://suggest3.sinajs.cn/suggest/key={q}",
+                        headers={"Referer": "https://finance.sina.com.cn"}
+                    )
+                    if resp.status_code == 200:
+                        text = resp.text
+                        for chunk in text.split(";"):
+                            if not chunk or "=" not in chunk:
+                                continue
+                            parts = chunk.split("=")
+                            if len(parts) < 2:
+                                continue
+                            content = parts[1].strip('"')
+                            # Multiple items in suggest data are separated by comma?
+                            # Wait, sinajs suggests: var suggestdata="name,type,symbol,full_symbol,..."
+                            # Let's inspect typical sinajs suggest data format:
+                            # var suggestdata="贵州茅台,11,600519,sh600519,贵州茅台,,贵州茅台,99;招商银行,11,600036,sh600036,招商银行,,招商银行,99;"
+                            # Ah, the items are separated by semicolon, and inside each item they are comma-separated!
+                            # Let's parse appropriately:
+                            fields = content.split(",")
+                            if len(fields) >= 4:
+                                name = fields[0]
+                                symbol = fields[2]
+                                full_symbol = fields[3]
+                                type_code = fields[1]
+                                if type_code in ("11", "12"): # A-share stock
+                                    market_type = "ashare"
+                                    exchange = "SH" if full_symbol.startswith("sh") else "SZ"
+                                    if symbol not in seen:
+                                        results.append({
+                                            "symbol": symbol,
+                                            "name": name,
+                                            "market": market_type,
+                                            "exchange": exchange
+                                        })
+                                        seen.add(symbol)
+            except Exception as e:
+                logger.warning(f"Sina search suggest error: {e}")
+                 
+        # 3) Live search via Yahoo Finance for US/HK stocks
+        if not market or market in ("us", "hk", "crypto"):
+            import httpx
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    resp = await client.get(
+                        f"https://query1.finance.yahoo.com/v1/finance/search?q={q}"
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for quote in data.get("quotes", []):
+                            symbol = quote.get("symbol", "")
+                            name = quote.get("longname") or quote.get("shortname") or symbol
+                            quote_type = quote.get("quoteType", "").upper()
+                             
+                            # Determine market
+                            if symbol.endswith(".HK") or (quote.get("exchDisp") == "HKSE"):
+                                item_market = "hk"
+                                exchange = "HKEX"
+                            elif quote_type == "CRYPTOCURRENCY":
+                                item_market = "crypto"
+                                display_sym = symbol
+                                if "-" in display_sym:
+                                    base = display_sym.split("-")[0]
+                                    display_sym = f"{base}/USDT"
+                                symbol = display_sym
+                                exchange = "Binance"
+                            else:
+                                item_market = "us"
+                                exchange = quote.get("exchange", "US")
+                                 
+                            if market and item_market != market:
+                                continue
+                                 
+                            if symbol not in seen:
+                                results.append({
+                                    "symbol": symbol,
+                                    "name": name,
+                                    "market": item_market,
+                                    "exchange": exchange
+                                })
+                                seen.add(symbol)
+            except Exception as e:
+                logger.warning(f"YFinance search suggest error: {e}")
+                 
+        # If results are still empty and query looks like a symbol, try fallback info
+        if not results and len(q) >= 3:
+            try:
+                info = await self.get_symbol_info(q)
+                if info and info.get("name") != q:
+                    results.append({
+                        "symbol": info["symbol"],
+                        "name": info["name"],
+                        "market": info["market"],
+                        "exchange": ""
+                    })
+            except Exception:
+                pass
+                 
+        return results
+

@@ -1768,3 +1768,459 @@ select.form-input {
 .depth-labels .green { color: #22c55e; }
 .depth-labels .red { color: #ef4444; }
 
+
+/* ==================== Watchlist Panel Styling ==================== */
+.tj-watchlist-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.watchlist-header {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tj-add-btn {
+  width: 100%;
+  padding: 8px;
+  background: rgba(48, 176, 255, 0.1);
+  color: #30b0ff;
+  border: 1px dashed rgba(48, 176, 255, 0.3);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.tj-add-btn:hover {
+  background: rgba(48, 176, 255, 0.2);
+  border-color: #30b0ff;
+}
+
+.watchlist-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+
+.watchlist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  border-left: 2px solid transparent;
+}
+
+.watchlist-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.watchlist-item.active {
+  background: rgba(48, 176, 255, 0.05);
+  border-left-color: #30b0ff;
+}
+
+.item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.symbol-ticker {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  font-family: monospace;
+}
+
+.symbol-name {
+  font-size: 10px;
+  color: var(--tj-text-secondary);
+}
+
+.item-price-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin-right: 8px;
+}
+
+.symbol-price {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e5e9f0;
+  font-family: monospace;
+}
+
+.symbol-price-loading {
+  font-size: 10px;
+  color: var(--tj-text-secondary);
+}
+
+.symbol-change {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.symbol-change.up {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.symbol-change.down {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.symbol-delete-btn {
+  opacity: 0;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: #9ca3af;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  cursor: pointer;
+  transition: all 0.15s;
+  z-index: 10;
+}
+
+.watchlist-item:hover .symbol-delete-btn {
+  opacity: 1;
+}
+
+.symbol-delete-btn:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.watchlist-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--tj-text-secondary);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ==================== Modal Styling ==================== */
+.tj-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.tj-modal-container {
+  width: 440px;
+  max-width: 90%;
+  background: #1e2026;
+  border: 1px solid var(--tj-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.tj-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--tj-border);
+}
+
+.tj-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.tj-modal-header .close-btn {
+  border: none;
+  background: transparent;
+  color: var(--tj-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.tj-modal-header .close-btn:hover {
+  color: #fff;
+}
+
+.tj-modal-tabs {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  background: #16171d;
+  border-bottom: 1px solid var(--tj-border);
+}
+
+.tab-arrow {
+  border: none;
+  background: transparent;
+  color: var(--tj-text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.tab-scroll-container {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  padding: 6px 0;
+}
+
+.tab-scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.modal-tab-btn {
+  border: none;
+  background: transparent;
+  color: var(--tj-text-secondary);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+}
+
+.modal-tab-btn:hover {
+  color: #fff;
+}
+
+.modal-tab-btn.active {
+  color: #30b0ff;
+  border-bottom-color: #30b0ff;
+}
+
+.tj-modal-search {
+  display: flex;
+  padding: 12px 16px;
+  gap: 8px;
+  background: #1e2026;
+}
+
+.tj-modal-search input {
+  flex: 1;
+  background: #16171d;
+  border: 1px solid var(--tj-border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.tj-modal-search input:focus {
+  outline: none;
+  border-color: #30b0ff;
+}
+
+.search-submit-btn {
+  border: none;
+  background: #30b0ff;
+  color: #fff;
+  font-size: 12px;
+  padding: 0 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-weight: 500;
+}
+
+.search-submit-btn:hover {
+  background: #1690e0;
+}
+
+.tj-modal-list-section {
+  flex: 1;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  max-height: 280px;
+  overflow: hidden;
+}
+
+.list-title {
+  font-size: 11px;
+  color: var(--tj-text-secondary);
+  margin-bottom: 8px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fire-icon {
+  color: #ff4d4f;
+}
+
+.tj-modal-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tj-modal-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.tj-modal-list-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.item-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.item-symbol {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  font-family: monospace;
+}
+
+.item-name {
+  font-size: 11px;
+  color: var(--tj-text-secondary);
+}
+
+.add-toggle-btn {
+  border: 1px solid rgba(48, 176, 255, 0.4);
+  background: transparent;
+  color: #30b0ff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+
+.add-toggle-btn:hover {
+  background: rgba(48, 176, 255, 0.1);
+}
+
+.add-toggle-btn.added {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--tj-text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.add-toggle-btn.added:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.no-data {
+  text-align: center;
+  padding: 30px;
+  color: var(--tj-text-secondary);
+  font-size: 12px;
+}
+
+.tj-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  gap: 8px;
+  border-top: 1px solid var(--tj-border);
+  background: #16171d;
+}
+
+.footer-cancel-btn {
+  border: 1px solid var(--tj-border);
+  background: transparent;
+  color: var(--tj-text-secondary);
+  font-size: 12px;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.footer-cancel-btn:hover {
+  color: #fff;
+  border-color: #fff;
+}
+
+.footer-confirm-btn {
+  border: none;
+  background: #30b0ff;
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-weight: 500;
+}
+
+.footer-confirm-btn:hover {
+  background: #1690e0;
+}
+
+

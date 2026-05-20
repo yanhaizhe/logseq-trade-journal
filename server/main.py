@@ -26,7 +26,7 @@ load_dotenv()
 
 from src.models import (
     KLineRequest, KLineResponse,
-    SearchRequest, SearchResponse,
+    SearchRequest, SearchResponse, SearchResult,
     HealthResponse,
 )
 from src.router import DataRouter
@@ -105,8 +105,16 @@ async def search(
     q: str = Query(..., min_length=1, description="搜索关键词"),
     market: str = Query(None),
 ):
-    # 简单搜索实现（可后续扩展）
-    return SearchResponse(query=q, results=[])
+    if not router:
+        raise HTTPException(503, "服务未就绪")
+    try:
+        results = await router.search_symbols(q, market)
+        formatted = [SearchResult(**item) for item in results]
+        return SearchResponse(query=q, results=formatted)
+    except Exception as e:
+        logger.exception(f"搜索失败: {q}")
+        raise HTTPException(500, str(e))
+
 
 
 @app.post("/shutdown")

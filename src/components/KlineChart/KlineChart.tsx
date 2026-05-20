@@ -60,6 +60,44 @@ interface TradeItem {
   amount: number;
 }
 
+const HOT_SYMBOLS: Record<string, Array<{ symbol: string; name: string; market: string }>> = {
+  ashare: [
+    { symbol: "600519", name: "贵州茅台", market: "ashare" },
+    { symbol: "600036", name: "招商银行", market: "ashare" },
+    { symbol: "601318", name: "中国平安", market: "ashare" },
+    { symbol: "600900", name: "长江电力", market: "ashare" },
+    { symbol: "601899", name: "紫金矿业", market: "ashare" },
+  ],
+  us: [
+    { symbol: "AAPL", name: "Apple Inc.", market: "us" },
+    { symbol: "TSLA", name: "Tesla Inc.", market: "us" },
+    { symbol: "NVDA", name: "NVIDIA Corp.", market: "us" },
+    { symbol: "MSFT", name: "Microsoft Corp.", market: "us" },
+    { symbol: "AMZN", name: "Amazon.com Inc.", market: "us" },
+  ],
+  hk: [
+    { symbol: "00700.HK", name: "腾讯控股", market: "hk" },
+    { symbol: "03690.HK", name: "美团-W", market: "hk" },
+    { symbol: "09988.HK", name: "阿里巴巴-W", market: "hk" },
+    { symbol: "01810.HK", name: "小米集团-W", market: "hk" },
+    { symbol: "09618.HK", name: "京东集团-SW", market: "hk" },
+  ],
+  crypto: [
+    { symbol: "BTC/USDT", name: "Bitcoin", market: "crypto" },
+    { symbol: "ETH/USDT", name: "Ethereum", market: "crypto" },
+    { symbol: "SOL/USDT", name: "Solana", market: "crypto" },
+    { symbol: "BNB/USDT", name: "BNB", market: "crypto" },
+    { symbol: "DOGE/USDT", name: "Dogecoin", market: "crypto" },
+  ],
+  forex: [
+    { symbol: "EUR/USD", name: "欧元/美元", market: "forex" },
+    { symbol: "USD/JPY", name: "美元/日元", market: "forex" },
+    { symbol: "GBP/USD", name: "英镑/美元", market: "forex" },
+    { symbol: "AUD/USD", name: "澳元/美元", market: "forex" },
+    { symbol: "USD/CAD", name: "美元/加元", market: "forex" },
+  ],
+};
+
 const KlineChartComponent: React.FC<KlineChartProps> = ({
   symbol: initialSymbol = '000001',
   height = 560,
@@ -77,11 +115,143 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
   // Panels state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'orderbook' | 'trades' | 'depth'>('orderbook');
+  const [activeTab, setActiveTab] = useState<'watchlist' | 'orderbook' | 'trades' | 'depth'>('watchlist');
   const [orderBook, setOrderBook] = useState<{ asks: OrderBookItem[]; bids: OrderBookItem[]; maxTotal: number } | null>(null);
   const [trades, setTrades] = useState<TradeItem[]>([]);
 
+  // Watchlist states
+  const [watchlist, setWatchlist] = useState<Array<{ symbol: string; name: string; market: string }>>(() => {
+    const saved = localStorage.getItem('tj_watchlist');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return [
+      { symbol: '600519', name: '贵州茅台', market: 'ashare' },
+      { symbol: 'AAPL', name: 'Apple Inc.', market: 'us' },
+      { symbol: 'BTC/USDT', name: 'Bitcoin', market: 'crypto' },
+    ];
+  });
+  const [watchlistPrices, setWatchlistPrices] = useState<Record<string, { price: number; changePct: number }>>({});
+
+  // Add modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [activeMarketTab, setActiveMarketTab] = useState<string>('ashare');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{ symbol: string; name: string; market: string; exchange: string }>>([]);
+
   const decimals = currentPrice > 1000 ? 2 : currentPrice > 1 ? 2 : 4;
+
+  // Sync current price details with watchlist in real time
+  useEffect(() => {
+    if (currentSymbol && currentPrice > 0) {
+      setWatchlistPrices(prev => ({
+        ...prev,
+        [currentSymbol]: {
+          price: currentPrice,
+          changePct: currentChangePct
+        }
+      }));
+    }
+  }, [currentSymbol, currentPrice, currentChangePct]);
+
+  // Background fetch prices for all watchlist items
+  useEffect(() => {
+    localStorage.setItem('tj_watchlist', JSON.stringify(watchlist));
+    if (watchlist.length === 0) return;
+
+    let isMounted = true;
+    const fetchWatchlistPrices = async () => {
+      const prices: Record<string, { price: number; changePct: number }> = {};
+      await Promise.all(watchlist.map(async (item) => {
+        try {
+          const response = await fetch(`http://127.0.0.1:8765/kline?symbol=${encodeURIComponent(item.symbol)}&period=daily&limit=2`);
+          if (response.ok) {
+            const res = await response.json();
+            if (res.data && res.data.length > 0) {
+              const data = res.data;
+              const last = data[data.length - 1];
+              const prev = data[data.length - 2] ?? last;
+              const change = last.close - prev.close;
+              const changePct = prev.close ? (change / prev.close) * 100 : 0;
+              prices[item.symbol] = {
+                price: last.close,
+                changePct
+              };
+            }
+          }
+        } catch (e) {
+          console.warn('Fetch price failed for', item.symbol, e);
+        }
+      }));
+
+      if (isMounted) {
+        setWatchlistPrices(prev => ({ ...prev, ...prices }));
+      }
+    };
+
+    fetchWatchlistPrices();
+    const timer = setInterval(fetchWatchlistPrices, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [watchlist]);
+
+  // Handle Search API calls
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const response = await fetch(`http://127.0.0.1:8765/search?q=${encodeURIComponent(searchQuery)}&market=${activeMarketTab}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.results || []);
+      }
+    } catch (e) {
+      console.error('搜索请求失败:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      handleSearch();
+    } else {
+      setSearchResults([]);
+    }
+  }, [activeMarketTab, searchQuery]);
+
+  const toggleWatchlist = (item: { symbol: string; name: string; market: string }) => {
+    setWatchlist(prev => {
+      const exists = prev.some(w => w.symbol === item.symbol);
+      if (exists) {
+        return prev.filter(w => w.symbol !== item.symbol);
+      } else {
+        return [...prev, item];
+      }
+    });
+  };
+
+  const handleSelectSymbol = (symbol: string, name?: string) => {
+    const cleaned = symbol.toUpperCase().trim();
+    const market = detectMarket(cleaned);
+    const isCrypto = market === 'crypto';
+
+    if (proChartRef.current) {
+      proChartRef.current.setSymbol({
+        ticker: cleaned,
+        name: name || cleaned,
+        shortName: name || cleaned,
+        market: isCrypto ? 'crypto' : 'stocks',
+        pricePrecision: isCrypto ? 4 : 2,
+        volumePrecision: 0,
+        priceCurrency: isCrypto ? 'USDT' : 'CNY',
+        type: isCrypto ? 'crypto' : 'stock',
+      });
+      setCurrentSymbol(cleaned);
+    }
+  };
 
   // Initialize and clean up chart
   useEffect(() => {
@@ -409,6 +579,12 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
               {/* 标签页导航 */}
               <div className="tj-sidebar-tabs">
                 <button
+                  className={`tj-tab-btn ${activeTab === 'watchlist' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('watchlist')}
+                >
+                  自选
+                </button>
+                <button
                   className={`tj-tab-btn ${activeTab === 'orderbook' ? 'active' : ''}`}
                   onClick={() => setActiveTab('orderbook')}
                 >
@@ -433,6 +609,82 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
               {/* 标签页内容 */}
               <div className="tj-tab-pane">
+                {/* 自选 */}
+                {activeTab === 'watchlist' && (
+                  <div className="tj-watchlist-panel">
+                    <div className="watchlist-header">
+                      <button className="tj-add-btn" onClick={() => {
+                        setShowAddModal(true);
+                        setSearchQuery('');
+                        setSearchResults([]);
+                      }}>
+                        + 添加自选股
+                      </button>
+                    </div>
+                    
+                    <div className="watchlist-list">
+                      {watchlist.map((item) => {
+                        const pInfo = watchlistPrices[item.symbol];
+                        const hasPrice = pInfo !== undefined;
+                        const price = hasPrice ? pInfo.price : 0;
+                        const changePct = hasPrice ? pInfo.changePct : 0;
+                        const isUp = changePct >= 0;
+                        const priceDecimals = price > 1000 ? 2 : price > 1 ? 2 : 4;
+                        
+                        return (
+                          <div
+                            key={item.symbol}
+                            className={`watchlist-item ${currentSymbol === item.symbol ? 'active' : ''}`}
+                            onClick={() => handleSelectSymbol(item.symbol, item.name)}
+                          >
+                            <div className="item-meta">
+                              <span className="symbol-ticker">{item.symbol}</span>
+                              <span className="symbol-name">{item.name}</span>
+                            </div>
+                            
+                            <div className="item-price-info">
+                              {hasPrice ? (
+                                <>
+                                  <span className="symbol-price">{price.toFixed(priceDecimals)}</span>
+                                  <span className={`symbol-change ${isUp ? 'up' : 'down'}`}>
+                                    {isUp ? '+' : ''}{changePct.toFixed(2)}%
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="symbol-price-loading">加载中...</span>
+                              )}
+                            </div>
+                            
+                            <button
+                              className="symbol-delete-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setWatchlist(prev => prev.filter(w => w.symbol !== item.symbol));
+                              }}
+                              title="删除自选"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                      
+                      {watchlist.length === 0 && (
+                        <div className="watchlist-empty">
+                          <p>暂无自选股</p>
+                          <button className="tj-add-btn" onClick={() => {
+                            setShowAddModal(true);
+                            setSearchQuery('');
+                            setSearchResults([]);
+                          }}>
+                            立即添加
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* 委托簿 */}
                 {activeTab === 'orderbook' && (
                   <div className="tj-orderbook-panel">
@@ -525,11 +777,113 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
           ) : (
             <div className="tj-collapsed-bar" onClick={() => setIsSidebarOpen(true)} title="展开侧栏">
               <span className="collapsed-arrow">◀</span>
-              <span className="collapsed-text">委<br />托<br />簿</span>
+              <span className="collapsed-text">自<br />选<br />股</span>
             </div>
           )}
         </div>
       </div>
+
+      {/* 添加自选模态弹窗 */}
+      {showAddModal && (
+        <div className="tj-modal-overlay">
+          <div className="tj-modal-container">
+            <div className="tj-modal-header">
+              <h3>添加自选股</h3>
+              <button className="close-btn" onClick={() => setShowAddModal(false)}>✕</button>
+            </div>
+            
+            {/* 市场分类导航 */}
+            <div className="tj-modal-tabs">
+              <button className="tab-arrow">‹</button>
+              <div className="tab-scroll-container">
+                {[
+                  { id: 'ashare', label: 'A股' },
+                  { id: 'us', label: '美股' },
+                  { id: 'hk', label: 'H股' },
+                  { id: 'crypto', label: '加密货币' },
+                  { id: 'forex', label: '外汇' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    className={`modal-tab-btn ${activeMarketTab === tab.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveMarketTab(tab.id);
+                      setSearchResults([]);
+                      setSearchQuery('');
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <button className="tab-arrow">›</button>
+            </div>
+            
+            {/* 搜索框 */}
+            <form
+              className="tj-modal-search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSearch();
+              }}
+            >
+              <input
+                type="text"
+                placeholder="输入代码或拼音/中文搜索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <button type="submit" className="search-submit-btn">
+                🔍 搜索
+              </button>
+            </form>
+            
+            {/* 标的列表 */}
+            <div className="tj-modal-list-section">
+              <div className="list-title">
+                {searchQuery ? '搜索结果' : (
+                  <>
+                    <span className="fire-icon">🔥</span> 热门标的
+                  </>
+                )}
+              </div>
+              
+              <div className="tj-modal-list">
+                {(searchQuery ? searchResults : (HOT_SYMBOLS[activeMarketTab] || [])).map((item) => {
+                  const isAdded = watchlist.some((w) => w.symbol === item.symbol);
+                  return (
+                    <div key={item.symbol} className="tj-modal-list-item">
+                      <div className="item-info">
+                        <span className="item-symbol">{item.symbol}</span>
+                        <span className="item-name">{item.name}</span>
+                      </div>
+                      <button
+                        className={`add-toggle-btn ${isAdded ? 'added' : ''}`}
+                        onClick={() => toggleWatchlist(item)}
+                      >
+                        {isAdded ? '已自选' : '+ 自选'}
+                      </button>
+                    </div>
+                  );
+                })}
+                {(searchQuery ? searchResults : HOT_SYMBOLS[activeMarketTab]).length === 0 && (
+                  <div className="no-data">暂无标的数据</div>
+                )}
+              </div>
+            </div>
+            
+            <div className="tj-modal-footer">
+              <button className="footer-cancel-btn" onClick={() => setShowAddModal(false)}>
+                取消
+              </button>
+              <button className="footer-confirm-btn" onClick={() => setShowAddModal(false)}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
