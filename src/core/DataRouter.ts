@@ -27,6 +27,10 @@ export class DataRouter {
     return this.provider.healthDetail();
   }
 
+  async fetchSymbolInfo(symbol: string): Promise<{ name: string; symbol: string; market: string }> {
+    return this.provider.fetchSymbolInfo(symbol);
+  }
+
   async fetchKLine(symbol: string, timeframe: Timeframe): Promise<FetchResult> {
     const market = detectMarket(symbol);
     const code = normalize(symbol);

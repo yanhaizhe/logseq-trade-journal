@@ -19,19 +19,78 @@ import { detectMarket } from '@/core/providers/types';
 import type { InstrumentInfo } from '@/types/trade';
 import { formatMoney, formatPercent } from '@/utils/format';
 
+// ===== 注册自定义图形 overlays (矩形 & 圆形) =====
+try {
+  kc.registerOverlay({
+    name: 'rect',
+    needDefaultPointFigure: true,
+    totalStep: 3,
+    createPointFigures: ({ coordinates }) => {
+      if (coordinates.length < 2) return [];
+      return [
+        {
+          type: 'rect',
+          attrs: {
+            x: Math.min(coordinates[0].x, coordinates[1].x),
+            y: Math.min(coordinates[0].y, coordinates[1].y),
+            width: Math.abs(coordinates[1].x - coordinates[0].x),
+            height: Math.abs(coordinates[1].y - coordinates[0].y)
+          },
+          styles: {
+            style: 'stroke_fill'
+          }
+        }
+      ];
+    }
+  });
+
+  kc.registerOverlay({
+    name: 'circle',
+    needDefaultPointFigure: true,
+    totalStep: 3,
+    createPointFigures: ({ coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const r = Math.sqrt(
+        Math.pow(coordinates[1].x - coordinates[0].x, 2) +
+        Math.pow(coordinates[1].y - coordinates[0].y, 2)
+      );
+      return [
+        {
+          type: 'circle',
+          attrs: {
+            x: coordinates[0].x,
+            y: coordinates[0].y,
+            r: r
+          },
+          styles: {
+            style: 'stroke_fill'
+          }
+        }
+      ];
+    }
+  });
+} catch (e) {
+  console.warn('Failed to register custom overlays:', e);
+}
+
 // ===== 画图工具 =====
 const DRAWING_TOOLS = [
   { id: 'cursor', name: '指针', icon: '🖱', group: 'nav' },
   { id: 'horizontalStraightLine', name: '水平线', icon: '━', group: 'line' },
+  { id: 'horizontalRayLine', name: '水平射线', icon: '⇁', group: 'line' },
+  { id: 'horizontalSegment', name: '水平线段', icon: '╌', group: 'line' },
   { id: 'verticalStraightLine', name: '垂直线', icon: '┃', group: 'line' },
+  { id: 'verticalRayLine', name: '垂直射线', icon: '↿', group: 'line' },
+  { id: 'verticalSegment', name: '垂直线段', icon: '╎', group: 'line' },
   { id: 'straightLine', name: '直线', icon: '╱', group: 'line' },
   { id: 'rayLine', name: '射线', icon: '↗', group: 'line' },
   { id: 'segment', name: '线段', icon: '⎯', group: 'line' },
   { id: 'parallelStraightLine', name: '平行线', icon: '⫼', group: 'line' },
   { id: 'priceLine', name: '价格线', icon: '$', group: 'line' },
+  { id: 'priceChannelLine', name: '通道线', icon: '⫴', group: 'line' },
   { id: 'rect', name: '矩形', icon: '▭', group: 'shape' },
   { id: 'circle', name: '圆', icon: '○', group: 'shape' },
-  { id: 'fibonacci', name: '斐波那契', icon: 'Φ', group: 'shape' },
+  { id: 'fibonacciLine', name: '斐波那契', icon: 'Φ', group: 'shape' },
 ];
 
 const DRAWING_GROUPS = [
@@ -163,14 +222,14 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
       };
       setInstrumentInfo(info);
 
-      // A 股名称
-      if (detectMarket(normalized) === 'ashare') {
-        try {
-          const r = await fetch(`https://push2.eastmoney.com/api/qt/stock/get?secid=1.${normalized}&fields=f57`);
-          const j = await r.json();
-          if (j?.data?.f57) { info.name = j.data.f57; setInstrumentInfo({ ...info }); }
-        } catch {}
-      }
+      // 获取标的名称 (A股/港股/美股等)
+      try {
+        const symbolInfo = await dataRouter.fetchSymbolInfo(normalized);
+        if (symbolInfo && symbolInfo.name) {
+          info.name = symbolInfo.name;
+          setInstrumentInfo({ ...info });
+        }
+      } catch {}
     } catch (err) {
       setError(`加载失败: ${(err as Error).message}`);
       setKlineData(dataService.generateMockData(normalized, timeframe as Timeframe, 200));
@@ -215,7 +274,13 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
     if (!chart) return;
     if (toolId === 'cursor') { setActiveDrawing(null); return; }
     try {
-      chart.createOverlay(toolId);
+      chart.createOverlay({
+        name: toolId,
+        onDrawEnd: () => {
+          setActiveDrawing(null);
+          return false;
+        }
+      });
       setActiveDrawing(toolId);
     } catch {}
   }, []);
@@ -341,6 +406,14 @@ function createTheme(type: 'light' | 'dark') {
       xAxis: { axisLine: { color: '#ccc', size: 1 }, tickText: { color: '#666', size: 11 } },
       yAxis: { axisLine: { color: '#ccc', size: 1 }, tickText: { color: '#666', size: 11 } },
       separator: { color: '#e8e8e8', size: 1 },
+      overlay: {
+        point: { color: '#1677ff', borderColor: 'rgba(22, 119, 255, 0.35)', borderSize: 1, radius: 4, activeRadius: 6, activeColor: '#1677ff', activeBorderColor: 'rgba(22, 119, 255, 0.5)' },
+        line: { color: '#1677ff', size: 1.5, style: 'solid' },
+        rect: { borderColor: '#1677ff', borderSize: 1.5, color: 'rgba(22, 119, 255, 0.1)' },
+        circle: { borderColor: '#1677ff', borderSize: 1.5, color: 'rgba(22, 119, 255, 0.1)' },
+        polygon: { borderColor: '#1677ff', borderSize: 1.5, color: 'rgba(22, 119, 255, 0.1)' },
+        text: { color: '#1677ff', size: 12, family: 'sans-serif', weight: 'normal' }
+      }
     };
   }
   return {
@@ -353,6 +426,14 @@ function createTheme(type: 'light' | 'dark') {
     xAxis: { axisLine: { color: '#4a4a4a', size: 1 }, tickText: { color: '#aaa', size: 11 } },
     yAxis: { axisLine: { color: '#4a4a4a', size: 1 }, tickText: { color: '#aaa', size: 11 } },
     separator: { color: '#2a2e35', size: 1 },
+    overlay: {
+      point: { color: '#30b0ff', borderColor: 'rgba(48, 176, 255, 0.35)', borderSize: 1, radius: 4, activeRadius: 6, activeColor: '#30b0ff', activeBorderColor: 'rgba(48, 176, 255, 0.5)' },
+      line: { color: '#30b0ff', size: 1.5, style: 'solid' },
+      rect: { borderColor: '#30b0ff', borderSize: 1.5, color: 'rgba(48, 176, 255, 0.1)' },
+      circle: { borderColor: '#30b0ff', borderSize: 1.5, color: 'rgba(48, 176, 255, 0.1)' },
+      polygon: { borderColor: '#30b0ff', borderSize: 1.5, color: 'rgba(48, 176, 255, 0.1)' },
+      text: { color: '#30b0ff', size: 12, family: 'sans-serif', weight: 'normal' }
+    }
   };
 }
 

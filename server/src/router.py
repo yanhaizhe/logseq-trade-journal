@@ -166,3 +166,35 @@ class DataRouter:
                 logger.warning(f"[health] tushare 异常: {e}")
                 results["tushare"] = False
         return results
+
+    async def get_symbol_info(self, symbol: str) -> dict:
+        symbol = symbol.strip().upper()
+        market = self.detect_market(symbol)
+        name = symbol
+        
+        if market == "ashare":
+            code = re.sub(r"[^0-9]", "", symbol)
+            if code and len(code) == 6:
+                prefix = "sh" if code.startswith("60") or code.startswith("68") else "sz"
+                import httpx
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as client:
+                        resp = await client.get(
+                            f"https://hq.sinajs.cn/list={prefix}{code}",
+                            headers={"Referer": "https://finance.sina.com.cn"}
+                        )
+                        if resp.status_code == 200:
+                            match = re.search(r'="([^,"]+)', resp.text)
+                            if match:
+                                name = match.group(1)
+                except Exception as e:
+                    logger.warning(f"获取 A股 名称失败 {symbol}: {e}")
+        elif market in ("us", "hk"):
+            try:
+                import yfinance as yf
+                ticker = yf.Ticker(symbol)
+                name = ticker.info.get("longName") or ticker.info.get("shortName") or symbol
+            except Exception as e:
+                logger.warning(f"获取 美股/港股 名称失败 {symbol}: {e}")
+                
+        return {"symbol": symbol, "name": name, "market": market}

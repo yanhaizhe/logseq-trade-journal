@@ -87,6 +87,19 @@ async def get_kline(
         raise HTTPException(500, str(e))
 
 
+@app.get("/info")
+async def get_info(
+    symbol: str = Query(..., description="标的代码"),
+):
+    if not router:
+        raise HTTPException(503, "服务未就绪")
+    try:
+        return await router.get_symbol_info(symbol)
+    except Exception as e:
+        logger.exception(f"获取标的信息异常: {symbol}")
+        raise HTTPException(500, str(e))
+
+
 @app.get("/search", response_model=SearchResponse)
 async def search(
     q: str = Query(..., min_length=1, description="搜索关键词"),

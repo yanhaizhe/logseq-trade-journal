@@ -55,6 +55,27 @@ export class AKShareProvider implements MarketDataProvider {
     }
   }
 
+  /** 获取标的详细信息（如中文名称） */
+  async fetchSymbolInfo(symbol: string): Promise<{ name: string; symbol: string; market: string }> {
+    const code = normalizeSymbol(symbol);
+    try {
+      const resp = await fetch(`${this.baseUrl}/info?symbol=${code}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        return {
+          name: json.name || symbol,
+          symbol: json.symbol || symbol,
+          market: json.market || 'unknown',
+        };
+      }
+    } catch (e) {
+      console.warn(`[AKShare] fetchSymbolInfo failed:`, e);
+    }
+    return { name: symbol, symbol, market: 'unknown' };
+  }
+
   async fetchKLine(req: FetchRequest): Promise<FetchResult> {
     const { symbol, timeframe } = req;
     const code = normalizeSymbol(symbol);
