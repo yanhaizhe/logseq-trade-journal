@@ -5,6 +5,8 @@ import { getDataRouter } from '@/core/DataRouter';
 import { detectMarket } from '@/core/providers/types';
 import type { InstrumentInfo } from '@/types/trade';
 import { formatMoney, formatPercent } from '@/utils/format';
+import { StudyLab } from './StudyLab';
+import { TradingNotes } from './TradingNotes';
 
 const dataRouter = getDataRouter();
 
@@ -115,7 +117,8 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
   // Panels state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'watchlist' | 'orderbook' | 'trades' | 'depth'>('watchlist');
+  const [activeTab, setActiveTab] = useState<'watchlist' | 'study' | 'trading' | 'orderbook' | 'trades' | 'depth'>('watchlist');
+  const [currentPeriod, setCurrentPeriod] = useState<string>('daily');
   const [orderBook, setOrderBook] = useState<{ asks: OrderBookItem[]; bids: OrderBookItem[]; maxTotal: number } | null>(null);
   const [trades, setTrades] = useState<TradeItem[]>([]);
 
@@ -312,6 +315,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
               setCurrentChange(change);
               setCurrentChangePct(changePct);
               setCurrentSymbol(symbolInfo.ticker);
+              setCurrentPeriod(tf);
               setMarketType(result.market || detectMarket(symbolInfo.ticker));
 
               const info: InstrumentInfo = {
@@ -573,7 +577,10 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
         <div ref={chartContainerRef} className="tj-pro-chart-container" />
 
         {/* 侧边栏 */}
-        <div className={`tj-pro-sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`}>
+        <div 
+          className={`tj-pro-sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`}
+          style={{ width: !isSidebarOpen ? undefined : (activeTab === 'trading' ? 420 : activeTab === 'study' ? 360 : 280) }}
+        >
           {isSidebarOpen ? (
             <div className="tj-sidebar-content">
               {/* 标签页导航 */}
@@ -585,22 +592,34 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
                   自选
                 </button>
                 <button
+                  className={`tj-tab-btn ${activeTab === 'study' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('study')}
+                >
+                  学习
+                </button>
+                <button
+                  className={`tj-tab-btn ${activeTab === 'trading' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('trading')}
+                >
+                  交易
+                </button>
+                <button
                   className={`tj-tab-btn ${activeTab === 'orderbook' ? 'active' : ''}`}
                   onClick={() => setActiveTab('orderbook')}
                 >
-                  委托簿
+                  委托
                 </button>
                 <button
                   className={`tj-tab-btn ${activeTab === 'trades' ? 'active' : ''}`}
                   onClick={() => setActiveTab('trades')}
                 >
-                  最新成交
+                  成交
                 </button>
                 <button
                   className={`tj-tab-btn ${activeTab === 'depth' ? 'active' : ''}`}
                   onClick={() => setActiveTab('depth')}
                 >
-                  深度图
+                  深度
                 </button>
                 <button className="tj-collapse-btn" onClick={() => setIsSidebarOpen(false)} title="收起侧栏">
                   ▶
@@ -771,6 +790,24 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
                       <span className="red">卖盘</span>
                     </div>
                   </div>
+                )}
+
+                {/* 知识学习 */}
+                {activeTab === 'study' && (
+                  <StudyLab
+                    onSelectSymbol={handleSelectSymbol}
+                    proChart={proChartRef.current}
+                  />
+                )}
+
+                {/* 交易体系 */}
+                {activeTab === 'trading' && (
+                  <TradingNotes
+                    currentSymbol={currentSymbol}
+                    currentPeriod={currentPeriod}
+                    currentPrice={currentPrice}
+                    onSelectSymbol={handleSelectSymbol}
+                  />
                 )}
               </div>
             </div>

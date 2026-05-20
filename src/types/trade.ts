@@ -113,3 +113,53 @@ export interface InstrumentInfo {
   volume: number;
   turnover: number;
 }
+
+/** 核心交易生命周期复盘记录（多阶段状态机） */
+export interface TradeLog {
+  id: string;
+  status: 'observe' | 'plan' | 'active' | 'closed';
+  symbol: string;
+  period: string;
+  date: string;
+  selectionReason: string;
+  fundamentalInfo: { sector: string; catalyst: string };
+  technicalSelection: string;
+  planPrice: { entry: number; sl: number; tp: number; ratio: number };
+  checklist: {
+    trendAligned: boolean;
+    levelConfirmed: boolean;
+    signalConfirmed: boolean;
+    ratioOk: boolean;
+    sizingOk: boolean;
+  };
+  technicalAnalysis: {
+    structure: string;
+    level: string;
+    trigger: string;
+    volumeFlow: string;
+  };
+  execution: {
+    actualEntry: number;
+    riskPercent: number;
+    totalCapital: number;
+    suggestedSize: number;
+  };
+  management: {
+    stopUpdates: string;
+    scaleActions: string;
+  };
+  exit: {
+    actualExit: number;
+    pnl: number;
+    rValue: number;
+    reason: string;
+  };
+  review: {
+    patternTags: string[];
+    disciplineRating: number;
+    psychologyTags: string[];
+    reviewNotes: string;
+    syncToStudy: boolean;
+  };
+}
+

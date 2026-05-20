@@ -3,7 +3,7 @@
  * 统一的交易业务逻辑入口
  */
 
-import type { TradeRecord, TradeInput, DailyReviewData } from '@/types/trade';
+import type { TradeRecord, TradeInput, DailyReviewData, TradeLog } from '@/types/trade';
 import { LogseqDBService } from './LogseqDBService';
 import { StatisticsEngine } from './StatisticsEngine';
 import { calcPnL, estimateFee } from '@/utils/calculator';
@@ -188,5 +188,23 @@ export class TradeManager {
       exitTime: '',
       fee,
     });
+  }
+
+  // ===== TradeLog Sync API =====
+
+  async getAllTradeLogs(): Promise<TradeLog[]> {
+    return this.db.getAllTradeLogs();
+  }
+
+  async insertTradeLog(log: TradeLog): Promise<string> {
+    return this.db.insertTradeLog(log);
+  }
+
+  async updateTradeLog(id: string, log: TradeLog): Promise<void> {
+    await this.db.updateTradeLog(id, log);
+  }
+
+  async deleteTradeLog(id: string): Promise<void> {
+    await this.db.deleteTradeLog(id);
   }
 }

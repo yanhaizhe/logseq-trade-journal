@@ -41,6 +41,9 @@ function main() {
     .${PLUGIN_ID}-toolbar-icon:hover {
       opacity: 0.8;
     }
+    #${PLUGIN_ID}_iframe {
+      pointer-events: auto !important;
+    }
   `);
 
   // 注册 Model（用于主 UI 显示/隐藏）
@@ -51,8 +54,13 @@ function main() {
   });
 
   logseq.setMainUIInlineStyle({
-    zIndex: 11,
+    zIndex: 9999,
     position: 'fixed',
+    top: '0',
+    left: '0',
+    width: '100%',
+    height: '100%',
+    pointerEvents: 'none',
   });
 
   // 注册工具栏按钮
