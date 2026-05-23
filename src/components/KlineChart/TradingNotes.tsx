@@ -99,12 +99,15 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
         }
       }
 
-      const saved = localStorage.getItem('tj_trade_logs');
-      if (saved) {
-        try {
-          setLogs(JSON.parse(saved));
-        } catch {}
-      }
+      try {
+        const saved = localStorage.getItem('tj_trade_logs');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setLogs(parsed);
+          }
+        }
+      } catch {}
     };
 
     loadLogs();
@@ -117,6 +120,9 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
         return;
       }
       if (e.key === 'Escape') {
+        if (document.querySelector('.tj-trade-form-overlay') || document.querySelector('.tj-modal-overlay')) {
+          return;
+        }
         const ls = (window as any).logseq;
         if (ls) ls.hideMainUI();
       }
@@ -128,13 +134,17 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
   const saveLogsToStorage = (updated: TradeLog[]) => {
     setLogs(updated);
     if (!tm) {
-      localStorage.setItem('tj_trade_logs', JSON.stringify(updated));
+      try {
+        localStorage.setItem('tj_trade_logs', JSON.stringify(updated));
+      } catch {}
     }
   };
 
   const handleLocateAndDraw = (log: TradeLog) => {
     onSelectSymbol(log.symbol);
-    const chart = proChart?._chartApi;
+    const _tn_container = proChart?._container;
+    const _tn_chartEl = _tn_container?.querySelector?.('[k-line-chart-id]');
+    const chart = _tn_chartEl ? (_tn_chartEl as any).__klinechart__ ?? null : null;
     if (chart) {
       chart.removeOverlay();
       if (log.planPrice) {
@@ -175,7 +185,9 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
   };
 
   const handleScreenshot = async (log: TradeLog) => {
-    const chart = proChart?._chartApi;
+    const _tn_container = proChart?._container;
+    const _tn_chartEl = _tn_container?.querySelector?.('[k-line-chart-id]');
+    const chart = _tn_chartEl ? (_tn_chartEl as any).__klinechart__ ?? null : null;
     if (chart && tm) {
       try {
         const base64Url = chart.getConvertPictureUrl(true, 'jpeg', '#1e1e2e');
@@ -393,13 +405,20 @@ export const TradingNotes: React.FC<TradingNotesProps> = ({
         date: new Date().toLocaleDateString(),
         note: `实盘平仓：${exitReason}。实际R值: ${rVal.toFixed(2)}R。复盘反思: ${reviewNotes}`
       };
-      const savedCollections = localStorage.getItem('tj_my_collections');
       let collections = [];
-      if (savedCollections) {
-        try { collections = JSON.parse(savedCollections); } catch {}
-      }
+      try {
+        const savedCollections = localStorage.getItem('tj_my_collections');
+        if (savedCollections) {
+          const parsed = JSON.parse(savedCollections);
+          if (Array.isArray(parsed)) {
+            collections = parsed;
+          }
+        }
+      } catch {}
       collections = [collectionItem, ...collections];
-      localStorage.setItem('tj_my_collections', JSON.stringify(collections));
+      try {
+        localStorage.setItem('tj_my_collections', JSON.stringify(collections));
+      } catch {}
     }
 
     setEditingLogId(null);

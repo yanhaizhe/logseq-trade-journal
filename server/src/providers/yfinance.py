@@ -3,6 +3,7 @@ YFinance Provider —— 美股 / 港股
 """
 
 from datetime import datetime
+from typing import Optional
 from src.providers.base import BaseProvider
 from src.models import KLineItem, KLineRequest
 

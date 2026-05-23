@@ -1,0 +1,165 @@
+delivery:
+  id: "DD-002"
+  name: "组合业绩审计 Portfolio Performance Audit"
+  type: "user_flow"
+  status: "in_development"
+  priority: "high"
+  created_by: "yale"
+  created_at: "2026-05-21T00:00:00+08:00"
+  updated_at: "2026-05-21T00:00:00+08:00"
+  handed_off_at: "2026-05-21T00:00:00+08:00"
+  assigned_to: "yale"
+  handoff_log: "deliveries/DD-002-handoff-log.md"
+  version: "1.0"
+
+description: |
+  DD-002 是组合业绩审计交付包，对应 Trigger Map 的次要业务目标「跨市场多币种资产对账与归因」。
+  Yale 在 Logseq 中切换到资产绩效看板，看到多账户折算后的 NAV 走势曲线与红绿盈亏日历；
+  点击标签归因过滤器进入归因审计视图，勾选特定策略/错误标签（如 #FOMO、#突破买入），
+  实时联动统计该标签的累计盈亏、胜率和最大回撤，并在交易表格中查看对应记录。
+  支持一键导出本地 Markdown 审计报告，全程 100% 本地运算、零外部网络依赖。
+
+user_value:
+  problem: |
+    跨市场多币种（CNY、USD、USDT）账户的 NAV 手工折算繁琐易错，汇率波动导致资产报表失真；
+    盈亏日历和归因标签散落在多个笔记中，无法直观归纳出导致亏损的核心行为模式。
+  solution: |
+    本地统一绩效看板：按选定基准币种自动折算多账户 NAV 并绘制资金曲线，红绿盈亏日历
+    一目了然展示每日盈亏分布；标签归因过滤器实时联动统计特定错误标签的累计损失与回撤，
+    双击交易行穿透至 Logseq 原始笔记块，一键导出本地 MD 审计报告。
+  success_criteria:
+    - "100% 折算准确率（0 误差）"
+    - "盈亏日历加载时间 < 100ms"
+    - "标签过滤响应时间 < 50ms"
+    - "双层击定位 Logseq Block < 100ms"
+    - "一键导出纯本地 MD 审计报告"
+
+design_artifacts:
+  scenarios:
+    - id: "02-yales-portfolio-performance-audit"
+      path: "C-UX-Scenarios/02-yales-portfolio-performance-audit/"
+      screens:
+        - "02.1-daily-performance-dashboard"
+        - "02.2-attribution-filter-view"
+
+  user_flows:
+    - name: "绩效审计最短路径"
+      entry: "Logseq Dashboard 标签页"
+      exit: "导出本地 MD 审计报告 ✓"
+      steps:
+        - "02.1: 查看 NAV 走势 + 盈亏日历"
+        - "02.2: 勾选归因标签 → 联动统计 + 交易表 → 双击穿透 → 导出"
+
+  design_system:
+    components:
+      - "Transparent Glass Toolbar"
+      - "Custom Select Dropdown"
+      - "SVG Chart Card (NAV Canvas)"
+      - "2x3 Grid of Glass Metric Cards"
+      - "Primary Glowing Action CTA"
+      - "PnL Calendar Matrix Card"
+      - "Calendar Day Cell (Square Grid Button)"
+      - "Frosted Glass Panel Wrapper"
+      - "Text Link Icon Button"
+      - "Tag Search Input (with Search Icon)"
+      - "Fluid Tag Flexbox (Checkbox Group)"
+      - "Attribution Stats Card (HSL Alert Border)"
+      - "Table Scroll Pane"
+      - "Trade Table (Row Click to Navigate)"
+      - "Floating Action Button (Gold Glow Export)"
+    path: "D-Design-System/"
+
+technical_requirements:
+  platform:
+    frontend: "React 18 + TypeScript + klinecharts + Zustand"
+    backend: "Python FastAPI (localhost loopback)"
+    target: "Logseq Desktop Plugin (Chrome/Edge WebView)"
+
+  integrations:
+    - name: "Logseq DB API"
+      purpose: "读取交易记录 Block 属性、定位原始日记块"
+      required: true
+    - name: "本地汇率引擎"
+      purpose: "CNY/USD/USDT 实时汇率换算（本地缓存 + 定时刷新）"
+      required: true
+    - name: "Tushare API"
+      purpose: "获取外汇基准汇率（USD/CNY 等）"
+      required: false
+
+  data_models:
+    - name: "PortfolioSnapshot"
+      fields:
+        - "date"
+        - "total_nav_base"
+        - "base_currency"
+        - "accounts_breakdown"
+        - "daily_pnl"
+    - name: "AttributionStats"
+      fields:
+        - "tag_name"
+        - "cumulative_pnl"
+        - "win_rate"
+        - "max_drawdown"
+        - "trade_count"
+        - "trade_ids"
+
+  performance:
+    - "NAV 图表渲染 < 100ms"
+    - "盈亏日历月度加载 < 100ms"
+    - "标签过滤联动 < 50ms"
+    - "双击交易行穿透定位 < 100ms"
+
+acceptance_criteria:
+  functional:
+    - "多账户选择与基准币种切换后 NAV 曲线实时重算"
+    - "月度盈亏日历红绿区分正确（盈利绿色/亏损红色/无交易无色）"
+    - "NAV 折线图悬停探针显示当日总资产 + 各子账户分项"
+    - "盈亏日历单元格悬停显示当日净盈亏/笔数/胜率/最大单笔亏损"
+    - "归因标签过滤器勾选后左侧汇总卡 + 右侧交易表联动更新"
+    - "标签支持 AND/OR 逻辑组合筛选"
+    - "双击交易表格行自动聚焦 Logseq 原始日记 Block"
+    - "一键导出结构化 MD 审计报告至剪贴板"
+
+  non_functional:
+    - "100% 本地运算，零外部网络流出"
+    - "汇率换算精度：浮点运算后四舍五入至 2 位小数"
+    - "暗黑毛玻璃主题下图表色值可读"
+    - "大交易量（>5000 笔）下过滤不卡顿"
+
+  edge_cases:
+    - "无任何交易记录 → NAV 为空状态提示，盈亏日历空白"
+    - "汇率数据源不可用 → 使用本地缓存汇率，状态栏提示「汇率未刷新」"
+    - "选择空标签 → 显示全部交易，汇总卡显示总体数据"
+    - "快速切换标签勾选 → 防抖处理，50ms 内只执行最终过滤"
+    - "导出时剪贴板权限未授予 → Toast 提示手动复制"
+
+testing_guidance:
+  user_testing:
+    - "Yale 本人完成一次月度审计：看板 → 过滤 #FOMO → 双击穿透 → 导出"
+    - "验证折算精度：手动对账已知账户余额 vs 看板显示值"
+    - "验证日历颜色：确认红绿与当日实际盈亏方向一致"
+  qa_testing:
+    - "浏览器: Chrome 90+, Edge 90+"
+    - "视口: 1440×900 桌面端"
+    - "暗色主题下 SVG 图表和日历网格可读性"
+  design_validation:
+    - "逐页对照 ASCII 线框图验证布局"
+    - "对照 OBJECT ID 清单确认所有组件已实现"
+
+estimated_complexity:
+  size: "medium"
+  effort: "1.5-2 周"
+  risk: "medium"
+  risk_rationale: "多币种汇率换算精度 + SVG NAV 图表渲染 + 日历网格组件是核心技术挑战。归因标签过滤在前端纯状态管理中实现，复杂度可控。"
+  dependencies:
+    - "DD-001: 需要已存在的 TradeRecord 数据来渲染盈亏日历"
+
+notes: |
+  对应 Trigger Map 次要目标「跨市场多币种资产对账与归因」。DD-002 是 DD-001 的自然延续——
+  先记录交易（DD-001），再审计绩效（DD-002）。
+
+  关键设计决策：
+  - NAV 图表使用 SVG（而非 Canvas）以便悬停探针交互
+  - 盈亏日历为纯 CSS Grid 实现，非第三方图表库
+  - 汇率引擎优先使用本地缓存，降级时提示但不阻塞
+  - AND/OR 标签逻辑在 Zustand store 中完成，无需后端参与

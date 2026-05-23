@@ -1,0 +1,267 @@
+test_scenario:
+  id: "TS-001"
+  name: "无缝交易复盘 — 用户验收测试"
+  delivery_id: "DD-001"
+  type: "user_acceptance"
+  status: "ready"
+  tester: "designer"
+  created_at: "2026-05-21T00:00:00+08:00"
+
+test_objectives:
+  - "验证 DD-001 实现是否符合页面规格设计"
+  - "确认双向跳转延迟达标（< 150ms）且实现零截图依赖复盘"
+  - "确认所有错误状态（离线/Token失效/空输入）被正确处理"
+  - "确保暗黑毛玻璃主题下所有组件可读性和交互一致性"
+  - "验证 Canvas 买卖标记渲染和 K 线快照绑定/还原功能"
+
+test_environment:
+  devices:
+    - "Desktop 1920×1080 — Chrome 90+ (Logseq WebView)"
+    - "Desktop 1920×1080 — Edge 90+"
+  test_data:
+    - symbol: "000001"
+    - direction: "买入"
+    - price: 12.50
+    - size: 1000
+    - strategy_tags: ["突破买入", "放量确认"]
+    - error_tags: ["FOMO"]
+
+happy_path:
+  - id: "HP-001"
+    name: "完整复盘最短路径（3步）"
+    priority: "critical"
+    steps:
+      - action: "打开 Logseq 桌面客户端，新建交易复盘 Block"
+        expected: "双栏工作区渲染完成，左侧 Block 就绪，右侧 K 线区域显示空状态提示"
+        design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.1-split-screen-kline-view/01.1-split-screen-kline-view.md#page-states"
+      - action: "在 Block 中输入标的代码（如 000001）"
+        expected: "右侧 K 线画布在 2s 内加载对应历史走势，底部状态栏指示灯全绿"
+        design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.1-split-screen-kline-view/01.1-split-screen-kline-view.md#page-sections"
+      - action: "点击「录入交易」FAB 按钮"
+        expected: "玻璃拟态交易表单 Overlay 弹出，包含方向切换、价格/数量输入、策略/错误标签复选区"
+        design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.2-trade-input-form/01.2-trade-input-form.md#page-sections"
+      - action: "填写全部字段（买入/12.50/1000/标签），点击「确认写入」"
+        expected: "表单关闭，买卖三角形标记在 K 线对应时间位置渲染；交易数据写入 Logseq Block 属性"
+        design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.2-trade-input-form/01.2-trade-input-form.md#page-sections"
+      - action: "在右侧 K 线 Canvas 上手动绘制一条趋势线"
+        expected: "趋势线在 Canvas 上正常绘制，控制点可拖拽调整"
+        design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.3-split-screen-kline-view/01.3-split-screen-kline-view.md#page-sections"
+      - action: "点击「绑定状态」按钮"
+        expected: "按钮高亮完成反馈（绿色脉冲），KlineSnapshot 写入 Block 属性，状态栏短暂显示「已绑定」"
+        design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.3-split-screen-kline-view/01.3-split-screen-kline-view.md#page-sections"
+      - action: "在 Logseq 中查看 Block 属性面板"
+        expected: "KlineSnapshot 字段完整（symbol/interval/drawing_json/indicator_json/timestamp/bound_block_id），关联合约"
+        design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.3-split-screen-kline-view/01.3-split-screen-kline-view.md#technical-notes"
+    success_criteria:
+      - "双向跳转延迟 < 150ms"
+      - "K 线初始加载 < 2s"
+      - "表单提交 < 50ms 即时响应"
+      - "零截图操作完成全流程复盘"
+
+error_states:
+  - id: "ES-001"
+    name: "FastAPI 数据服务离线"
+    priority: "critical"
+    steps:
+      - action: "在 FastAPI 未启动的情况下打开 Logseq 插件"
+      - expected: "底部状态栏 FastAPI 指示灯变红 + 文本'数据服务离线'"
+      - expected: "右侧 K 线区域灰度显示'数据服务未连接'占位提示"
+      - expected: "启动 FastAPI 后指示灯自动恢复绿色，K 线区域恢复可用"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.1-split-screen-kline-view/01.1-split-screen-kline-view.md#page-states"
+    success_criteria:
+      - "离线状态精确告警，不阻塞其他 UI 交互"
+      - "服务恢复后自动重连，无需手动刷新"
+
+  - id: "ES-002"
+    name: "Tushare Token 无效或未配置"
+    priority: "high"
+    steps:
+      - action: "在 Token 未配置的情况下输入标的代码加载 K 线"
+      - expected: "状态栏 Tushare 指示灯变红 + 文本'Token 未配置'"
+      - expected: "系统自动降级尝试 AKShare 备选数据源"
+      - expected: "提供快捷入口跳转至 Token 设置页面"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.1-split-screen-kline-view/01.1-split-screen-kline-view.md#page-states"
+    success_criteria:
+      - "Token 失效不影响插件基本可用性（降级至备选源）"
+      - "告警信息精确，指向明确的修复路径"
+
+  - id: "ES-003"
+    name: "空 Block 触发交易录入"
+    priority: "medium"
+    steps:
+      - action: "在 Block 完全为空时点击「录入交易」FAB"
+      - expected: "Toast 通知'请先在左侧输入标的代码'，表单不弹出"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.1-split-screen-kline-view/01.1-split-screen-kline-view.md#page-states"
+    success_criteria:
+      - "提示文案清晰，用户 2 秒内理解下一步操作"
+
+  - id: "ES-004"
+    name: "表单字段验证失败"
+    priority: "medium"
+    steps:
+      - action: "打开交易表单，留空价格/数量字段，直接点击'确认写入'"
+      - expected: "空字段边框变红 + 下方显示红色提示'必填项'"
+      - expected: "提交被阻止，表单不关闭"
+      - expected: "补充字段后红色消失，可正常提交"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.2-trade-input-form/01.2-trade-input-form.md#page-states"
+    success_criteria:
+      - "不仅靠颜色传达错误（颜色 + 文本 + 图标三重提示）"
+
+edge_cases:
+  - id: "EC-001"
+    name: "超大 K 线数据集"
+    priority: "medium"
+    steps:
+      - action: "加载包含 10000+ 根 K 线的标的（如日线 10 年历史数据）"
+      - expected: "首屏渲染前 500 根 K 线，响应时间 < 2s"
+      - expected: "向右滚动按需分页加载后续数据，无白屏"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.1-split-screen-kline-view/01.1-split-screen-kline-view.md#technical-notes"
+    success_criteria:
+      - "大数据量下首屏加载延迟不增加"
+      - "滚动分页流畅无卡顿"
+
+  - id: "EC-002"
+    name: "Canvas 划线超过上限"
+    priority: "low"
+    steps:
+      - action: "在 K 线图上连续绘制超过 50 条划线"
+      - expected: "第 51 条划线时 Toast 提示'最多保存 50 条划线，请删除旧线后继续'"
+      - expected: "已绘制的前 50 条划线不受影响"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.3-split-screen-kline-view/01.3-split-screen-kline-view.md#technical-notes"
+    success_criteria:
+      - "超限提示友好，不丢失已有数据"
+
+  - id: "EC-003"
+    name: "快速连续点击防抖"
+    priority: "medium"
+    steps:
+      - action: "连续快速点击'确认写入'按钮 5 次"
+      - expected: "仅触发一次提交流程，按钮在首次点击后立即 disabled + loading"
+      - expected: "不会产生重复 TradeRecord"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.2-trade-input-form/01.2-trade-input-form.md#technical-notes"
+    success_criteria:
+      - "无重复数据写入 Logseq DB"
+
+  - id: "EC-004"
+    name: "窗口尺寸变化"
+    priority: "low"
+    steps:
+      - action: "从 1920×1080 缩小浏览器窗口至 1280×720，再恢复"
+      - expected: "双栏比例自动适应，组件不溢出、不重叠"
+      - expected: "K 线图表 Canvas 自动重新计算尺寸"
+      - design_ref: "C-UX-Scenarios/01-yales-frictionless-trade-review/01.1-split-screen-kline-view/01.1-split-screen-kline-view.md#layout-structure"
+    success_criteria:
+      - "无横向滚动条"
+      - "关键交互区域（FAB、表单、状态栏）始终可见"
+
+design_system_checks:
+  - id: "DS-001"
+    name: "核心组件一致性验证"
+    checks:
+      - component: "Glassmorphism Card Overlay"
+        instances: ["交易表单面板 (01.2)", "Execution Hover Card (01.3)"]
+        verify:
+          - "背景透明度统一 (rgba 暗色 + blur)"
+          - "圆角半径一致 (rounded-lg)"
+          - "边框半透明描边一致"
+      - component: "Primary Glowing Button"
+        instances: ["确认写入 (01.2)", "绑定状态 (01.3)"]
+        verify:
+          - "渐变色规范一致"
+          - "Hover 发光效果一致"
+          - "Active 缩放反馈一致"
+      - component: "Fixed Frosted Status Strip"
+        instances: ["底部状态栏 (01.1/01.3)"]
+        verify:
+          - "毛玻璃 backdrop-filter blur 值一致"
+          - "指示灯绿/红颜色与规格一致"
+          - "字体大小与 Typography Token 一致"
+    design_ref: "D-Design-System/00-design-system.md"
+
+accessibility:
+  - id: "A11Y-001"
+    name: "键盘导航可达性"
+    priority: "high"
+    setup: "不依赖鼠标操作全流程"
+    steps:
+      - action: "使用 Tab 键遍历所有交互元素"
+      - verify:
+          - "FAB 按钮可通过 Tab 到达并回车触发"
+          - "表单所有字段可通过 Tab 顺序切换"
+          - "复选标签组可通过 Space 勾选/取消"
+          - "底部状态栏指示灯有 aria-label 描述"
+    success_criteria:
+      - "所有交互元素键盘可达且可操作"
+
+  - id: "A11Y-002"
+    name: "暗黑主题对比度"
+    priority: "high"
+    steps:
+      - action: "使用 contrast checker 验证主要文字区域"
+      - verify:
+          - "正文文字对比度 ≥ 4.5:1 (WCAG AA)"
+          - "大号标题文字对比度 ≥ 3:1"
+          - "表单占位符文字对比度 ≥ 3:1"
+          - "错误状态红色文字 + 边框对比度均满足"
+    success_criteria:
+      - "全部文字区域通过 WCAG AA 标准"
+
+  - id: "A11Y-003"
+    name: "表单验证多模态反馈"
+    priority: "medium"
+    steps:
+      - action: "提交空表单触发表单验证"
+      - verify:
+          - "错误字段有红色边框 + 错误图标 + 文本提示（三重反馈）"
+          - "仅色盲用户也能识别错误字段"
+          - "屏幕阅读器可读出错误提示文本"
+    success_criteria:
+      - "不单独依赖颜色传达状态"
+
+usability:
+  - id: "UX-001"
+    name: "首用心流评估"
+    type: "observational"
+    instructions: |
+      Yale 本人走通完整 3 步复盘路径，测试者观察并记录：
+      1. 是否有任何停顿/疑惑/误操作
+      2. 是否有需要看文档才能理解的操作
+      3. 每步实际耗时 vs 预期耗时
+      4. 心流是否被打断（主观评分 1-5）
+    success_criteria:
+      - "全程无文档依赖完成操作"
+      - "无超过 3 秒的停顿或困惑"
+      - "主观心流评分 ≥ 4/5"
+
+performance:
+  - id: "PERF-001"
+    name: "关键性能指标验证"
+    verify:
+      - "K 线初始加载时间（Performance API）"
+      - "双向跳转延迟（时间戳差）"
+      - "表单提交响应时间"
+      - "Canvas 买卖标记渲染帧时间"
+    success_criteria:
+      - "K 线初始加载 < 2s"
+      - "双向跳转延迟 < 150ms"
+      - "表单提交 < 50ms"
+      - "Canvas 标记渲染 < 16ms (60fps)"
+
+sign_off:
+  required_for_approval:
+    - "HP-001 全部步骤通过"
+    - "ES-001 / ES-002 错误处理正确"
+    - "EC-003 防重复提交有效"
+    - "无 Critical 或 High 严重缺陷"
+    - "Design System 合规率 ≥ 95%"
+    - "A11Y-001 / A11Y-002 通过"
+    - "PERF-001 全部指标达标"
+
+  designer_approval:
+    statement: |
+      我确认 DD-001（无缝交易复盘）的实现与设计规格完全一致，
+      通过所有验收测试标准，满足 Trigger Map 定义的核心业务目标
+      「极致高效的复盘心流体验」的质量要求。
+
+    signature: "________________"
+    date: "________________"

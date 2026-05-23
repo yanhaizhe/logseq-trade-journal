@@ -42,7 +42,7 @@ function main() {
       opacity: 0.8;
     }
     #${PLUGIN_ID}_iframe {
-      pointer-events: auto !important;
+      pointer-events: auto;
     }
   `);
 
@@ -104,36 +104,12 @@ function main() {
   // 渲染主 UI（App 组件）
   renderApp();
 
-  // Block 焦点与变动轮询检测 (300ms)
-  let lastBlockUuid = '';
-  let lastBlockContent = '';
-  setInterval(async () => {
-    try {
-      const block = await logseq.Editor.getCurrentBlock();
-      if (!block) {
-        if (lastBlockUuid !== '') {
-          lastBlockUuid = '';
-          lastBlockContent = '';
-          postToApp({ type: 'logseq-block-changed', block: null });
-        }
-        return;
-      }
-      const currentContent = block.content || '';
-      if (block.uuid !== lastBlockUuid || currentContent !== lastBlockContent) {
-        lastBlockUuid = block.uuid;
-        lastBlockContent = currentContent;
-        postToApp({ type: 'logseq-block-changed', block });
-      }
-    } catch (err) {
-      console.error('[TradeJournal] Error polling block:', err);
-    }
-  }, 300);
-
   logseq.on('ui:visible:changed', ({ visible }) => {
     postToApp({ type: 'visibility-changed', visible });
   });
 
-  logseq.showMainUI();
+  // 启动时默认保持隐藏，由用户点击工具栏或快捷命令触发显示
+  // logseq.showMainUI();
   console.info(`[${PLUGIN_ID}] initialized`);
 }
 

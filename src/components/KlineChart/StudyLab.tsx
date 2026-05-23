@@ -85,16 +85,21 @@ export const StudyLab: React.FC<StudyLabProps> = ({ onSelectSymbol, proChart }) 
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('tj_my_collections');
-    if (saved) {
-      try {
-        setMyCollections(JSON.parse(saved));
-      } catch {}
-    }
+    try {
+      const saved = localStorage.getItem('tj_my_collections');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setMyCollections(parsed);
+        }
+      }
+    } catch {}
   }, []);
 
   const handleApplyIndicator = (name: string) => {
-    const chart = proChart?._chartApi;
+    const container = proChart?._container;
+    const chartEl = container?.querySelector?.('[k-line-chart-id]');
+    const chart = chartEl ? (chartEl as any).__klinechart__ ?? null : null;
     if (chart) {
       try {
         // Clear sub indicators first or just add
@@ -123,7 +128,9 @@ export const StudyLab: React.FC<StudyLabProps> = ({ onSelectSymbol, proChart }) 
   const handleDeleteCollection = (idx: number) => {
     const updated = myCollections.filter((_, i) => i !== idx);
     setMyCollections(updated);
-    localStorage.setItem('tj_my_collections', JSON.stringify(updated));
+    try {
+      localStorage.setItem('tj_my_collections', JSON.stringify(updated));
+    } catch {}
     showToast('删除收录案例成功');
   };
 

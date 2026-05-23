@@ -1,0 +1,167 @@
+delivery:
+  id: "DD-001"
+  name: "无缝交易复盘 Frictionless Trade Review"
+  type: "user_flow"
+  status: "in_development"
+  priority: "high"
+  created_by: "yale"
+  created_at: "2026-05-21T00:00:00+08:00"
+  updated_at: "2026-05-21T00:00:00+08:00"
+  handed_off_at: "2026-05-21T00:00:00+08:00"
+  assigned_to: "yale"
+  handoff_log: "deliveries/DD-001-handoff-log.md"
+  version: "1.0"
+
+description: |
+  DD-001 是无缝交易复盘心流体验的核心交付包。Yale 在 Logseq 桌面客户端中打开双栏工作区，
+  左侧编辑交易笔记 Block，右侧 klinecharts 画布毫秒级加载对应 K 线走势；通过浮动表单录入
+  买卖价格、数量及策略/错误归因标签后，买卖标记自动渲染到 K 线；手动绘制趋势线后一键绑定
+  K 线快照状态（标的、周期、技术划线 JSON、指标）至 Block 属性，实现零截图依赖的完整复盘闭环。
+
+user_value:
+  problem: |
+    Yale 的复盘记录过程过于繁琐——拼图、裁剪、频繁在券商和笔记软件间切换，
+    导致复盘心流中断，且回溯笔记时无法还原真实的动态图表交互现场。
+  solution: |
+    双栏工作区实现毫秒级双向联动：左侧 Logseq 笔记中建立交易 Block，右侧 K 线图
+    瞬间加载对应走势；交易表单一键填写后自动渲染买卖标记；K 线状态（标的、周期、
+    技术划线 JSON、指标）通过时间戳毫秒级绑定至笔记块属性。
+  success_criteria:
+    - "双向跳转延迟 < 150ms"
+    - "100% 零截图依赖"
+    - "单笔复盘记录时间 < 5 分钟"
+    - "K 线初始加载时间 < 2s"
+
+design_artifacts:
+  scenarios:
+    - id: "01-yales-frictionless-trade-review"
+      path: "C-UX-Scenarios/01-yales-frictionless-trade-review/"
+      screens:
+        - "01.1-split-screen-kline-view"
+        - "01.2-trade-input-form"
+        - "01.3-split-screen-kline-view"
+
+  user_flows:
+    - name: "无缝交易复盘最短路径"
+      entry: "Logseq 桌面客户端 — 新建交易复盘 Block"
+      exit: "K 线快照状态成功绑定至 Block 属性 ✓"
+      steps:
+        - "01.1: 输入标的代码 → K 线加载"
+        - "01.2: 录入交易表单 → 买卖标记渲染"
+        - "01.3: 绘制趋势线 → 绑定 K 线快照"
+
+  design_system:
+    components:
+      - "Glassmorphism Card Overlay"
+      - "Primary Glowing Button"
+      - "Secondary Button"
+      - "Float Action Button (FAB)"
+      - "Toggle Icon Button"
+      - "Toggle Segmented Selector"
+      - "Numeric Form Input"
+      - "Checkbox Wrap Container"
+      - "Floating Glass Horizontal Bar"
+      - "Fixed Frosted Status Strip"
+      - "Glow Dot + Text Label"
+      - "Absolute Floating Micro Card (Dark Translucent)"
+      - "Custom Klinecharts Container"
+      - "Native Logseq Block Editor Wrapper"
+    path: "D-Design-System/"
+
+technical_requirements:
+  platform:
+    frontend: "React 18 + TypeScript + klinecharts + Zustand"
+    backend: "Python FastAPI (localhost loopback)"
+    target: "Logseq Desktop Plugin (Chrome/Edge WebView)"
+
+  integrations:
+    - name: "Logseq DB API"
+      purpose: "读写交易笔记 Block 属性（TradeRecord、KlineSnapshot 等元数据）"
+      required: true
+    - name: "Tushare API"
+      purpose: "获取 A 股/期货历史 K 线数据"
+      required: true
+    - name: "AKShare"
+      purpose: "备选免费数据源，支持更多中国市场数据"
+      required: false
+    - name: "CCXT"
+      purpose: "加密货币交易所统一 K 线数据接口"
+      required: false
+
+  data_models:
+    - name: "TradeRecord"
+      fields:
+        - "direction"
+        - "price"
+        - "size"
+        - "timestamp"
+        - "strategy_tags"
+        - "error_tags"
+    - name: "KlineSnapshot"
+      fields:
+        - "symbol"
+        - "interval"
+        - "drawing_json"
+        - "indicator_json"
+        - "timestamp"
+        - "bound_block_id"
+
+  performance:
+    - "双向跳转延迟 < 150ms"
+    - "K 线初始加载 < 2s"
+    - "表单提交即时响应 < 50ms"
+    - "Canvas 买卖标记渲染 < 16ms (60fps)"
+
+acceptance_criteria:
+  functional:
+    - "输入标的代码后右侧 K 线画布瞬间加载对应历史走势"
+    - "点击'录入交易'弹出玻璃拟态表单面板，包含方向、价格、数量、策略标签、错误标签"
+    - "提交表单后买卖三角形标记自动渲染到 K 线对应时间位置"
+    - "在 K 线上绘制趋势线后，点击'绑定状态'将快照写入 Logseq Block 属性"
+    - "在 Logseq 中点击 Block 属性可一键还原 K 线快照到当时的交互状态"
+    - "FastAPI 离线或 Token 无效时底部状态栏显示精确告警"
+
+  non_functional:
+    - "100% 本地运行，零外部网络流出（满足隐私要求）"
+    - "完全离线可用（仅依赖 localhost FastAPI）"
+    - "单笔复盘记录时间 < 5 分钟"
+    - "支持暗黑主题 + 毛玻璃视觉风格"
+    - "桌面端 1920×1080 视口完美适配"
+
+  edge_cases:
+    - "FastAPI 未启动 → 底部状态栏显示红色断连指示，K 线区域显示离线提示"
+    - "Tushare Token 无效 → 状态栏 Tushare 指示灯变红，提示在设置中配置"
+    - "空 Block 点击'录入交易'→ 提示'请先在左侧输入标的代码'"
+    - "非常大数量 K 线数据 → 分页加载，首屏渲染前 500 根 K 线"
+    - "Canvas 划线 JSON 过大 → 限制最大 50 条划线对象，超出时提示'
+
+testing_guidance:
+  user_testing:
+    - "Yale 本人走通 3 步最短路径，秒表测量每步耗时"
+    - "观察复盘心流是否被打断（是否出现等待/疑惑/误操作）"
+    - "验证回溯笔记时能否一键还原 K 线快照到原始交互状态"
+  qa_testing:
+    - "浏览器: Chrome 90+, Edge 90+（Logseq WebView 对应版本）"
+    - "视口: 1920×1080 Desktop 唯一目标"
+    - "暗色主题下所有组件可读性和对比度验证"
+  design_validation:
+    - "逐页对照规格文件的 ASCII 线框图验证布局"
+    - "对照 OBJECT ID 清单确认所有组件已实现"
+    - "对照 Spacing/Typography 表验证间距和字号"
+
+estimated_complexity:
+  size: "medium"
+  effort: "2-3 周"
+  risk: "medium"
+  risk_rationale: "K 线图表集成（klinecharts）+ Canvas 自定义标记渲染（买卖三角形、趋势线回显）是核心技术挑战。Logseq DB API 属性读写已有成熟方案。"
+  dependencies: []
+
+notes: |
+  这是 logseq-trade-journal 的 ⭐ PRIMARY ENGINE 交付包，对应 Trigger Map 的首要业务目标
+  「极致高效的复盘心流体验」。DD-001 完成后 Yale 即可脱离截图依赖进行每日交易复盘。
+
+  关键设计决策：
+  - 毛玻璃（Glassmorphism）+ 暗黑主题是全局视觉基调
+  - 双栏布局左笔记右图表是核心交互范式
+  - K 线快照通过 Logseq Block 属性（纯 Markdown/JSON）存储，保证数据可移植性
+  - FastAPI localhost 环回架构确保 100% 本地隐私

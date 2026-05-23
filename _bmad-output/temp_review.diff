@@ -1,0 +1,1389 @@
+diff --git a/src/app.css b/src/app.css
+index 188f309..2372e98 100644
+--- a/src/app.css
++++ b/src/app.css
+@@ -1477,6 +1477,7 @@ select.form-input {
+   color: #c5cbdb;
+   border-radius: var(--tj-radius);
+   overflow: hidden;
++  position: relative;
+ }
+ 
+ .tj-pro-chart-body {
+@@ -4031,7 +4032,12 @@ select.form-input {
+   background-color: var(--tj-red);
+   color: var(--tj-red);
+   box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+-  animation: tj-pulse 1.5s infinite;
++  animation: tj-pulse-light 1.5s infinite ease-in-out;
++}
++
++@keyframes tj-pulse-light {
++  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
++  50% { opacity: 0.4; box-shadow: 0 0 2px rgba(239, 68, 68, 0.2); }
+ }
+ 
+ .tj-status-text {
+@@ -4055,3 +4061,433 @@ select.form-input {
+     transform: translateY(0);
+   }
+ }
++
++/* ==================== Story 2.4: 交易表单录入样式 ==================== */
++
++/* 录入交易悬浮 FAB 按钮 */
++.tj-record-trade-fab {
++  position: absolute;
++  bottom: 24px;
++  right: 24px;
++  z-index: 10;
++  display: flex;
++  align-items: center;
++  gap: 6px;
++  padding: 10px 18px;
++  border-radius: 24px;
++  border: none;
++  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
++  color: #ffffff;
++  font-size: 13px;
++  font-weight: 600;
++  letter-spacing: 0.5px;
++  cursor: pointer;
++  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
++  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
++}
++
++.tj-record-trade-fab:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
++}
++
++.tj-record-trade-fab:active {
++  transform: translateY(0) scale(0.96);
++  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
++}
++
++/* 遮罩磨砂背景 */
++.tj-trade-form-overlay {
++  position: absolute;
++  top: 0;
++  left: 0;
++  right: 0;
++  bottom: 0;
++  background: rgba(10, 11, 15, 0.65);
++  backdrop-filter: blur(12px);
++  -webkit-backdrop-filter: blur(12px);
++  z-index: 1000;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  animation: tj-fade-in 0.2s ease-out;
++}
++
++/* 表单玻璃拟态容器 */
++.tj-trade-form-container {
++  background: linear-gradient(135deg, rgba(26, 27, 35, 0.9) 0%, rgba(18, 19, 24, 0.95) 100%);
++  border: 1px solid rgba(255, 255, 255, 0.08);
++  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 24px rgba(16, 185, 129, 0.03);
++  border-radius: 12px;
++  width: 90%;
++  max-width: 480px;
++  padding: 24px;
++  animation: tj-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
++}
++
++/* 表单头部 */
++.tj-trade-form-header {
++  display: flex;
++  justify-content: space-between;
++  align-items: center;
++  margin-bottom: 20px;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
++  padding-bottom: 12px;
++}
++
++.tj-trade-form-header h3 {
++  margin: 0;
++  font-size: 15px;
++  font-weight: 600;
++  color: #ffffff;
++  display: flex;
++  align-items: center;
++  gap: 6px;
++}
++
++.tj-trade-form-header .tj-close-btn {
++  background: none;
++  border: none;
++  color: var(--tj-text-secondary);
++  cursor: pointer;
++  font-size: 16px;
++  transition: color 0.15s;
++  padding: 4px;
++  line-height: 1;
++}
++
++.tj-trade-form-header .tj-close-btn:hover {
++  color: #ffffff;
++}
++
++/* 核心表单布局 */
++.tj-trade-form {
++  display: flex;
++  flex-direction: column;
++  gap: 16px;
++}
++
++.tj-trade-form .tj-form-group {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++}
++
++.tj-trade-form .tj-form-group label {
++  font-size: 12px;
++  font-weight: 600;
++  color: var(--tj-text-secondary);
++}
++
++.tj-trade-form .tj-form-group label.tj-sub-label {
++  font-size: 11px;
++  color: rgba(255, 255, 255, 0.65); /* 提高对比度以符合 WCAG AA */
++  margin-top: 2px;
++}
++
++.tj-trade-form .tj-form-row {
++  display: flex;
++  gap: 12px;
++  align-items: flex-start;
++}
++
++.tj-trade-form .tj-flex-1 {
++  flex: 1;
++}
++
++/* 方向选择器 */
++.tj-side-selector {
++  display: flex;
++  gap: 8px;
++}
++
++.tj-side-selector .tj-side-btn {
++  flex: 1;
++  padding: 8px 12px;
++  border-radius: 6px;
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  background: rgba(255, 255, 255, 0.02);
++  color: var(--tj-text-secondary);
++  font-size: 13px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.2s ease;
++}
++
++.tj-side-selector .tj-side-btn:hover {
++  background: rgba(255, 255, 255, 0.06);
++  color: var(--tj-text);
++  border-color: rgba(255, 255, 255, 0.2);
++}
++
++.tj-side-selector .tj-side-btn.buy.active {
++  background: rgba(34, 197, 94, 0.15);
++  border-color: var(--tj-green);
++  color: var(--tj-green);
++  box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
++}
++
++.tj-side-selector .tj-side-btn.sell.active {
++  background: rgba(239, 68, 68, 0.15);
++  border-color: var(--tj-red);
++  color: var(--tj-red);
++  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
++}
++
++/* 输入框 */
++.tj-trade-form input[type="number"],
++.tj-trade-form .tj-tag-search-input {
++  box-sizing: border-box;
++  width: 100%;
++  background: rgba(0, 0, 0, 0.2);
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  border-radius: 6px;
++  padding: 8px 12px;
++  color: #ffffff;
++  font-size: 13px;
++  outline: none;
++  transition: border-color 0.2s, box-shadow 0.2s;
++}
++
++.tj-trade-form input[type="number"]:focus,
++.tj-trade-form .tj-tag-search-input:focus {
++  border-color: var(--tj-accent);
++  box-shadow: 0 0 8px rgba(79, 142, 247, 0.25);
++}
++
++/* 错误校验状态 */
++.tj-trade-form input.tj-input-error {
++  border-color: var(--tj-red) !important;
++  box-shadow: 0 0 8px rgba(239, 68, 68, 0.25) !important;
++}
++
++.tj-trade-form .tj-error-text {
++  font-size: 11px;
++  color: var(--tj-red);
++  margin-top: 4px;
++  display: flex;
++  align-items: center;
++  gap: 4px;
++}
++
++/* 标签 Chip 复选区 */
++.tj-tags-chips-container {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
++  max-height: 110px;
++  overflow-y: auto;
++  padding: 8px;
++  background: rgba(0, 0, 0, 0.15);
++  border: 1px solid rgba(255, 255, 255, 0.05);
++  border-radius: 6px;
++}
++
++.tj-tags-chips-container::-webkit-scrollbar {
++  width: 4px;
++}
++
++.tj-tags-chips-container::-webkit-scrollbar-track {
++  background: transparent;
++}
++
++.tj-tags-chips-container::-webkit-scrollbar-thumb {
++  background: rgba(255, 255, 255, 0.15);
++  border-radius: 2px;
++}
++
++.tj-tags-chips-container::-webkit-scrollbar-thumb:hover {
++  background: rgba(255, 255, 255, 0.25);
++}
++
++.tj-tags-chips-container .tj-tag-chip {
++  font-size: 11px;
++  padding: 4px 8px;
++  border-radius: 4px;
++  cursor: pointer;
++  border: 1px solid transparent;
++  transition: all 0.15s ease;
++  user-select: none;
++}
++
++.tj-tags-chips-container .tj-tag-chip.strategy {
++  background: rgba(79, 142, 247, 0.08);
++  color: rgb(112, 164, 255); /* 提高对比度 */
++  border-color: rgba(79, 142, 247, 0.2);
++}
++
++.tj-tags-chips-container .tj-tag-chip.strategy:hover {
++  background: rgba(79, 142, 247, 0.15);
++  color: #ffffff;
++}
++
++.tj-tags-chips-container .tj-tag-chip.strategy.active {
++  background: rgba(34, 197, 94, 0.18);
++  color: var(--tj-green);
++  border-color: var(--tj-green);
++  box-shadow: 0 0 8px rgba(34, 197, 94, 0.25);
++}
++
++.tj-tags-chips-container .tj-tag-chip.error {
++  background: rgba(239, 68, 68, 0.08);
++  color: rgb(255, 107, 107); /* 提高对比度 */
++  border-color: rgba(239, 68, 68, 0.2);
++}
++
++.tj-tags-chips-container .tj-tag-chip.error:hover {
++  background: rgba(239, 68, 68, 0.15);
++  color: #ffffff;
++}
++
++.tj-tags-chips-container .tj-tag-chip.error.active {
++  background: rgba(239, 68, 68, 0.18);
++  color: var(--tj-red);
++  border-color: var(--tj-red);
++  box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
++}
++
++.tj-tags-chips-container .tj-no-tags-tip {
++  font-size: 11px;
++  color: rgba(255, 255, 255, 0.5); /* 提高对比度 */
++  padding: 4px;
++}
++
++/* 已选归因标签展示行样式 */
++.tj-selected-chips-row {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  margin-bottom: 8px;
++}
++
++.tj-selected-label {
++  font-size: 11px;
++  color: var(--tj-text-secondary);
++  font-weight: 600;
++}
++
++.tj-selected-chips-container {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
++}
++
++.tj-selected-chips-container .tj-tag-chip {
++  font-size: 11px;
++  padding: 4px 8px;
++  border-radius: 4px;
++  cursor: pointer;
++  border: 1px solid transparent;
++  transition: all 0.15s ease;
++  user-select: none;
++}
++
++.tj-selected-chips-container .tj-tag-chip.strategy.active {
++  background: rgba(34, 197, 94, 0.18);
++  color: var(--tj-green);
++  border-color: var(--tj-green);
++  box-shadow: 0 0 8px rgba(34, 197, 94, 0.25);
++}
++
++.tj-selected-chips-container .tj-tag-chip.error.active {
++  background: rgba(239, 68, 68, 0.18);
++  color: var(--tj-red);
++  border-color: var(--tj-red);
++  box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
++}
++
++/* 页脚 */
++.tj-trade-form-footer {
++  display: flex;
++  justify-content: flex-end;
++  gap: 10px;
++  margin-top: 10px;
++  border-top: 1px solid rgba(255, 255, 255, 0.08);
++  padding-top: 16px;
++}
++
++.tj-trade-form-footer .tj-footer-cancel-btn {
++  background: rgba(255, 255, 255, 0.05);
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  color: var(--tj-text-secondary);
++  border-radius: 6px;
++  padding: 8px 16px;
++  font-size: 12px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.2s ease;
++}
++
++.tj-trade-form-footer .tj-footer-cancel-btn:hover {
++  background: rgba(255, 255, 255, 0.1);
++  color: #ffffff;
++  border-color: rgba(255, 255, 255, 0.2);
++}
++
++.tj-trade-form-footer .tj-footer-confirm-btn {
++  background: var(--tj-accent);
++  border: none;
++  color: #ffffff;
++  border-radius: 6px;
++  padding: 8px 20px;
++  font-size: 12px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.2s ease;
++}
++
++.tj-trade-form-footer .tj-footer-confirm-btn:hover {
++  background: #3cb0ff;
++  box-shadow: 0 0 12px rgba(79, 142, 247, 0.4);
++}
++
++.tj-trade-form-footer .tj-footer-confirm-btn:active {
++  transform: scale(0.97);
++}
++
++/* 消息 Toast 容器 */
++.tj-toast {
++  position: absolute;
++  bottom: 40px;
++  left: 50%;
++  transform: translateX(-50%);
++  background: rgba(30, 31, 41, 0.9);
++  border: 1px solid rgba(239, 68, 68, 0.4);
++  color: var(--tj-text);
++  padding: 8px 16px;
++  border-radius: 20px;
++  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
++  backdrop-filter: blur(8px);
++  -webkit-backdrop-filter: blur(8px);
++  z-index: 1100;
++  pointer-events: none;
++  animation: tj-slide-up 0.2s ease-out;
++}
++
++.tj-trade-form-footer .tj-footer-confirm-btn:disabled {
++  background: rgba(255, 255, 255, 0.1);
++  color: rgba(255, 255, 255, 0.4);
++  cursor: not-allowed;
++  box-shadow: none;
++  transform: none;
++}
++
++.tj-trade-form-footer .tj-btn-loading::before {
++  content: "";
++  display: inline-block;
++  width: 12px;
++  height: 12px;
++  margin-right: 6px;
++  border: 2px solid rgba(255, 255, 255, 0.2);
++  border-top-color: #ffffff;
++  border-radius: 50%;
++  animation: tj-spin 0.8s linear infinite;
++  vertical-align: middle;
++}
++
++@keyframes tj-spin {
++  to {
++    transform: rotate(360deg);
++  }
++}
++
+diff --git a/src/components/KlineChart/KlineChart.tsx b/src/components/KlineChart/KlineChart.tsx
+index ac9b9dd..f451b1f 100644
+--- a/src/components/KlineChart/KlineChart.tsx
++++ b/src/components/KlineChart/KlineChart.tsx
+@@ -3,11 +3,13 @@ import { KLineChartPro, Period, SymbolInfo } from '@klinecharts/pro';
+ import '@klinecharts/pro/dist/klinecharts-pro.css';
+ import { getDataRouter } from '@/core/DataRouter';
+ import { detectMarket } from '@/core/providers/types';
+-import type { InstrumentInfo } from '@/types/trade';
++import type { InstrumentInfo, TradeRecord } from '@/types/trade';
++import type { Timeframe } from '@/types/chart';
+ import { formatMoney, formatPercent } from '@/utils/format';
+ import { StudyLab } from './StudyLab';
+ import { TradingNotes } from './TradingNotes';
+ import { useAppStore } from '@/store';
++import { KLineData, registerOverlay } from 'klinecharts';
+ 
+ const dataRouter = getDataRouter();
+ 
+@@ -23,7 +25,70 @@ const PERIODS: Period[] = [
+   { multiplier: 1, timespan: 'month', text: '月K' },
+ ];
+ 
+-function periodToTimeframe(period: Period): string {
++registerOverlay({
++  name: 'tradeMarker',
++  totalStep: 2,
++  createPointFigures: ({ coordinates, overlay }) => {
++    const coord = coordinates[0];
++    if (!coord) return [];
++
++    const extendData = overlay.extendData || {};
++    const { direction, price } = extendData;
++    const isBuy = direction === 'buy' || direction === 'long';
++
++    const color = isBuy ? '#089981' : '#F23645';
++
++    const triangleCoords = isBuy
++      ? [
++          { x: coord.x, y: coord.y - 10 },
++          { x: coord.x - 7, y: coord.y + 4 },
++          { x: coord.x + 7, y: coord.y + 4 },
++        ]
++      : [
++          { x: coord.x, y: coord.y + 10 },
++          { x: coord.x - 7, y: coord.y - 4 },
++          { x: coord.x + 7, y: coord.y - 4 },
++        ];
++
++    const extendDataStr = typeof overlay.extendData === 'string'
++      ? overlay.extendData
++      : `${isBuy ? '买入' : '卖出'} ${price ?? ''}`;
++
++    return [
++      {
++        type: 'polygon',
++        attrs: {
++          coordinates: triangleCoords,
++        },
++        styles: {
++          style: 'fill',
++          color: color,
++        },
++      },
++      {
++        type: 'text',
++        attrs: {
++          x: coord.x,
++          y: isBuy ? coord.y + 10 : coord.y - 10,
++          text: extendDataStr,
++          align: 'center',
++          baseline: isBuy ? 'top' : 'bottom',
++        },
++        styles: {
++          color: '#ffffff',
++          size: 11,
++          backgroundColor: 'rgba(20, 20, 20, 0.75)',
++          paddingLeft: 4,
++          paddingRight: 4,
++          paddingTop: 2,
++          paddingBottom: 2,
++        },
++      },
++    ];
++  },
++});
++
++function periodToTimeframe(period: Period): Timeframe {
+   const { multiplier, timespan } = period;
+   if (timespan === 'minute') {
+     if (multiplier === 1) return '1m';
+@@ -39,6 +104,44 @@ function periodToTimeframe(period: Period): string {
+   return '1D';
+ }
+ 
++function formatPeriodText(tf: string): string {
++  const map: Record<string, string> = {
++    '1m': '1分钟线',
++    '5m': '5分钟线',
++    '15m': '15分钟线',
++    '30m': '30分钟线',
++    '1H': '1小时线',
++    '4H': '4小时线',
++    '1D': '日线',
++    '1W': '周线',
++    '1M': '月线',
++    'daily': '日线',
++  };
++  return map[tf] ?? tf;
++}
++
++const PRESET_PATTERNS = [
++  '双底/双顶',
++  '头肩底/头肩顶',
++  '看涨吞没/看跌吞没',
++  'Pinbar 锤子线/流星线',
++  'BOS 结构破坏',
++  '流动性扫荡',
++  'S/R 支撑阻力互换',
++  'OB 订单块/需求区',
++  'VCP 波动紧缩'
++];
++
++const PRESET_PSYCHOLOGY = [
++  '冷静耐心',
++  '完全遵守纪律',
++  'FOMO/追高',
++  '报复交易',
++  '恐惧缩手',
++  '贪婪扛单',
++  '提前平仓'
++];
++
+ function marketLabel(m: string): string {
+   const map: Record<string, string> = { ashare: 'A股', us: '美股', hk: '港股', crypto: '加密', futures: '期货' };
+   return map[m] ?? m;
+@@ -115,9 +218,12 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+   const chartContainerRef = useRef<HTMLDivElement>(null);
+   const proChartRef = useRef<KLineChartPro | null>(null);
+   const canvasRef = useRef<HTMLCanvasElement>(null);
++  const loadTokenRef = useRef(0);
++  const fpsRef = useRef<HTMLSpanElement>(null);
+   const isVisible = useAppStore(state => state.isVisible);
+ 
+   const [currentSymbol, setCurrentSymbol] = useState(symbol);
++
+   const [currentPrice, setCurrentPrice] = useState<number>(0);
+   const [currentChange, setCurrentChange] = useState<number>(0);
+   const [currentChangePct, setCurrentChangePct] = useState<number>(0);
+@@ -128,6 +234,279 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+   const [chartState, setChartState] = useState<'normal' | 'not_found' | 'offline'>('normal');
+   const [isOnline, setIsOnline] = useState<boolean>(true);
+ 
++  const isMountedRef = useRef(true);
++  useEffect(() => {
++    isMountedRef.current = true;
++    return () => {
++      isMountedRef.current = false;
++    };
++  }, []);
++
++  // 交易表单和提示状态
++  const [showTradeForm, setShowTradeForm] = useState(false);
++  const [formSide, setFormSide] = useState<'buy' | 'sell'>('buy');
++  const [formPrice, setFormPrice] = useState<string>('');
++  const [formAmount, setFormAmount] = useState<string>('');
++  const [selectedStrategyTags, setSelectedStrategyTags] = useState<string[]>([]);
++  const [selectedErrorTags, setSelectedErrorTags] = useState<string[]>([]);
++  const [tagSearchQuery, setTagSearchQuery] = useState<string>('');
++  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
++  const [toastMsg, setToastMsg] = useState<string | null>(null);
++  const [isSubmitting, setIsSubmitting] = useState(false);
++  const lastSubmitRef = useRef<number>(0);
++  const lastBarTimestampRef = useRef<number>(0);
++
++  const handleCloseForm = useCallback(() => {
++    setShowTradeForm(false);
++    setFormPrice('');
++    setFormAmount('');
++    setFormSide('buy');
++    setSelectedStrategyTags([]);
++    setSelectedErrorTags([]);
++    setFormErrors({});
++    setTagSearchQuery('');
++  }, []);
++
++  const renderTradeMarkers = useCallback((records: TradeRecord[], chartApi: any) => {
++    if (!chartApi) return;
++    try {
++      chartApi.removeOverlay({ name: 'tradeMarker' });
++    } catch (e) {
++      console.warn('Failed to remove trade overlays:', e);
++    }
++    
++    records.forEach(r => {
++      try {
++        const timestamp = new Date(r.entryTime).getTime();
++        chartApi.createOverlay({
++          name: 'tradeMarker',
++          points: [{ timestamp, value: r.entryPrice }],
++          extendData: {
++            direction: r.direction,
++            price: r.entryPrice
++          }
++        });
++      } catch (e) {
++        console.warn('Failed to create overlay for record:', r, e);
++      }
++    });
++  }, []);
++
++  const refreshTradeMarkers = useCallback(async (symbol: string) => {
++    if (!proChartRef.current) return;
++    const chart = (proChartRef.current as any)._chartApi;
++    if (!chart) return;
++
++    let records: TradeRecord[] = [];
++    const tm = (window as any).__tradeManager;
++    if (tm && tm.db) {
++      try {
++        records = await tm.db.getTradesBySymbol(symbol);
++      } catch (e) {
++        console.error('Failed to get trades by symbol:', e);
++      }
++    } else {
++      try {
++        const key = 'tj_trade_records';
++        const saved = localStorage.getItem(key);
++        if (saved) {
++          const all = JSON.parse(saved);
++          records = all.filter((r: any) => r.symbol === symbol);
++        }
++      } catch {}
++    }
++
++    renderTradeMarkers(records, chart);
++  }, [renderTradeMarkers]);
++
++  const writeTradeRecord = useCallback(async (record: Omit<TradeRecord, 'id'>) => {
++    const tm = (window as any).__tradeManager;
++    if (tm && tm.db) {
++      // 1. 获取现有记录进行防重校验
++      const existing = await tm.db.getTradesBySymbol(record.symbol);
++      const isDuplicate = existing.some((r: any) => {
++        const rTime = new Date(r.entryTime).getTime();
++        const newTime = new Date(record.entryTime).getTime();
++        return r.symbol === record.symbol &&
++          r.direction === record.direction &&
++          r.entryPrice === record.entryPrice &&
++          Math.abs(rTime - newTime) < 60000;
++      });
++
++      if (isDuplicate) {
++        throw new Error('DUPLICATE');
++      }
++
++      // 2. 写入 Logseq DB
++      await tm.db.insertTrade(record);
++    } else {
++      // 3. 降级到 localStorage
++      const key = 'tj_trade_records';
++      const existingStr = localStorage.getItem(key);
++      const existing = existingStr ? JSON.parse(existingStr) : [];
++      
++      const isDuplicate = existing.some((r: any) => {
++        const rTime = new Date(r.entryTime).getTime();
++        const newTime = new Date(record.entryTime).getTime();
++        return r.symbol === record.symbol &&
++          r.direction === record.direction &&
++          r.entryPrice === record.entryPrice &&
++          Math.abs(rTime - newTime) < 60000;
++      });
++
++      if (isDuplicate) {
++        throw new Error('DUPLICATE');
++      }
++
++      const newRecord = { ...record, id: `local_${Date.now()}` };
++      existing.push(newRecord);
++      localStorage.setItem(key, JSON.stringify(existing));
++    }
++  }, []);
++
++  // 当标的加载成功且状态为 normal 时加载并渲染交易标记
++  useEffect(() => {
++    if (currentSymbol && chartState === 'normal') {
++      const timer = setTimeout(() => {
++        refreshTradeMarkers(currentSymbol);
++      }, 200);
++      return () => clearTimeout(timer);
++    }
++  }, [currentSymbol, chartState, refreshTradeMarkers]);
++
++  useEffect(() => {
++    if (toastMsg) {
++      const timer = setTimeout(() => setToastMsg(null), 3000);
++      return () => clearTimeout(timer);
++    }
++  }, [toastMsg]);
++
++  // 监听全局 Esc 键以关闭表单
++  useEffect(() => {
++    const handleGlobalKeyDown = (e: KeyboardEvent) => {
++      if (e.key === 'Escape' && showTradeForm) {
++        e.preventDefault();
++        handleCloseForm();
++      }
++    };
++    window.addEventListener('keydown', handleGlobalKeyDown);
++    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
++  }, [showTradeForm, handleCloseForm]);
++
++  const handleFabClick = useCallback(() => {
++    if (!currentSymbol || currentSymbol.trim() === '') {
++      setToastMsg('⚠️ 请先在左侧输入标的代码');
++      return;
++    }
++    setFormPrice(currentPrice > 0 ? currentPrice.toString() : '');
++    setFormAmount('');
++    setFormSide('buy');
++    setSelectedStrategyTags([]);
++    setSelectedErrorTags([]);
++    setFormErrors({});
++    setTagSearchQuery('');
++    setShowTradeForm(true);
++  }, [currentSymbol, currentPrice]);
++
++  const handleFormSubmit = useCallback(async (e: React.FormEvent) => {
++    e.preventDefault();
++    
++    // 50ms 防抖
++    const now = Date.now();
++    if (now - lastSubmitRef.current < 50) return;
++    lastSubmitRef.current = now;
++    
++    const errors: Record<string, string> = {};
++    
++    if (!formPrice.trim()) {
++      errors.price = '必填项';
++    } else {
++      const priceNum = parseFloat(formPrice);
++      if (isNaN(priceNum) || priceNum <= 0) {
++        errors.price = '价格必须大于 0';
++      }
++    }
++    
++    if (!formAmount.trim()) {
++      errors.amount = '必填项';
++    } else {
++      const amountNum = parseFloat(formAmount);
++      if (isNaN(amountNum) || amountNum <= 0) {
++        errors.amount = '数量必须大于 0';
++      }
++    }
++    
++    if (Object.keys(errors).length > 0) {
++      setFormErrors(errors);
++      return;
++    }
++    
++    setIsSubmitting(true);
++    try {
++      const recordTime = lastBarTimestampRef.current || Date.now();
++      const newRecord: Omit<TradeRecord, 'id'> = {
++        symbol: currentSymbol,
++        direction: formSide === 'buy' ? 'long' : 'short',
++        entryPrice: parseFloat(formPrice),
++        exitPrice: 0,
++        quantity: parseFloat(formAmount),
++        entryTime: new Date(recordTime).toISOString(),
++        exitTime: new Date(recordTime).toISOString(),
++        fee: 0,
++        profit: 0,
++        profitPct: 0,
++        netPnL: 0,
++        strategy: selectedStrategyTags.join(','),
++        tags: [...selectedStrategyTags, ...selectedErrorTags],
++        createdAt: new Date().toISOString(),
++      };
++      
++      await writeTradeRecord(newRecord);
++      setToastMsg('✅ 交易已录入');
++      handleCloseForm();
++      // 立即刷新标记
++      refreshTradeMarkers(currentSymbol);
++    } catch (err: any) {
++      if (err.message === 'DUPLICATE') {
++        setToastMsg('⚠️ 该交易已存在，请勿重复录入');
++      } else {
++        setToastMsg(`⚠️ 录入失败: ${err.message || '未知错误'}`);
++      }
++    } finally {
++      setIsSubmitting(false);
++    }
++  }, [
++    formPrice,
++    formAmount,
++    formSide,
++    selectedStrategyTags,
++    selectedErrorTags,
++    currentSymbol,
++    writeTradeRecord,
++    refreshTradeMarkers,
++    handleCloseForm,
++  ]);
++
++  const toggleStrategyTag = useCallback((tag: string) => {
++    setSelectedStrategyTags(prev => 
++      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
++    );
++  }, []);
++
++  const toggleErrorTag = useCallback((tag: string) => {
++    setSelectedErrorTags(prev => 
++      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
++    );
++  }, []);
++
++  const filteredPatterns = PRESET_PATTERNS.filter(tag => 
++    tag.toLowerCase().includes(tagSearchQuery.toLowerCase())
++  );
++  
++  const filteredPsychology = PRESET_PSYCHOLOGY.filter(tag => 
++    tag.toLowerCase().includes(tagSearchQuery.toLowerCase())
++  );
++
+   // Panels state
+   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+   const [activeTab, setActiveTab] = useState<'watchlist' | 'study' | 'trading' | 'orderbook' | 'trades' | 'depth'>('watchlist');
+@@ -167,75 +546,92 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+     return () => window.removeEventListener('keydown', handleKeyDown);
+   }, [isSidebarOpen]);
+ 
+-
+   // Add modal states
+   const [showAddModal, setShowAddModal] = useState(false);
+   const [activeMarketTab, setActiveMarketTab] = useState<string>('ashare');
+   const [searchQuery, setSearchQuery] = useState('');
+   const [searchResults, setSearchResults] = useState<Array<{ symbol: string; name: string; market: string; exchange: string }>>([]);
+ 
+-  // 将 handleSelectSymbol 用 useCallback 声明并置顶
+   const handleSelectSymbol = useCallback((sym: string, name?: string) => {
+     const cleaned = sym.toUpperCase().trim();
+     const market = detectMarket(cleaned);
+     const isCrypto = market === 'crypto';
+ 
++    setCurrentPrice(0);
++    setInstrumentInfo(null);
++    setCurrentSymbol(cleaned);
++
+     if (proChartRef.current) {
+-      proChartRef.current.setSymbol({
+-        ticker: cleaned,
+-        name: name || cleaned,
+-        shortName: name || cleaned,
+-        market: isCrypto ? 'crypto' : 'stocks',
+-        pricePrecision: isCrypto ? 4 : 2,
+-        volumePrecision: 0,
+-        priceCurrency: isCrypto ? 'USDT' : 'CNY',
+-        type: isCrypto ? 'crypto' : 'stock',
+-      });
+-      setCurrentSymbol(cleaned);
++      try {
++        proChartRef.current.setSymbol({
++          ticker: cleaned,
++          name: name || cleaned,
++          shortName: name || cleaned,
++          market: isCrypto ? 'crypto' : 'stocks',
++          pricePrecision: isCrypto ? 4 : 2,
++          volumePrecision: 0,
++          priceCurrency: isCrypto ? 'USDT' : 'CNY',
++          type: isCrypto ? 'crypto' : 'stock',
++        });
++      } catch (e) {
++        console.warn('Failed to set symbol for pro chart:', e);
++      }
+     }
+   }, []);
+ 
++  const currentSymbolRef = useRef(currentSymbol);
++  useEffect(() => {
++    currentSymbolRef.current = currentSymbol;
++  }, [currentSymbol]);
++
+   // 自检重载
+   const checkHealthAndReload = useCallback(async () => {
+     try {
+       const healthy = await dataRouter.checkAKShareHealth();
++      if (!isMountedRef.current) return;
+       setIsOnline(healthy);
+       if (healthy) {
+         if (chartState === 'offline') {
+           setChartState('normal');
+           if (proChartRef.current) {
+-            handleSelectSymbol(currentSymbol);
++            handleSelectSymbol(currentSymbolRef.current);
+           }
+         }
+       } else {
+         setChartState('offline');
+       }
+     } catch {
++      if (!isMountedRef.current) return;
+       setIsOnline(false);
+       setChartState('offline');
+     }
+-  }, [chartState, currentSymbol, handleSelectSymbol]);
++  }, [chartState, handleSelectSymbol]);
+ 
+   // Props.symbol 同步变动
++  const prevSymbolRef = useRef(symbol);
+   useEffect(() => {
+-    if (symbol && symbol !== currentSymbol) {
++    if (symbol && symbol !== prevSymbolRef.current) {
++      prevSymbolRef.current = symbol;
+       handleSelectSymbol(symbol);
+     }
+-  }, [symbol, currentSymbol, handleSelectSymbol]);
++  }, [symbol, handleSelectSymbol]);
+ 
+-  // 15秒健康度轮询 (使用 checkHealthRef 避免 timer 频繁销毁与重置)
++  // 15秒健康度轮询
+   const checkHealthRef = useRef(checkHealthAndReload);
+   useEffect(() => {
+     checkHealthRef.current = checkHealthAndReload;
+   }, [checkHealthAndReload]);
+ 
+   useEffect(() => {
++    if (!isVisible) return;
+     checkHealthRef.current();
+     const timer = setInterval(() => {
+-      checkHealthRef.current();
++      if (isVisible) {
++        checkHealthRef.current();
++      }
+     }, 15000);
+     return () => clearInterval(timer);
+-  }, []);
++  }, [isVisible]);
+ 
+   const decimals = currentPrice > 1000 ? 2 : currentPrice > 1 ? 2 : 4;
+ 
+@@ -252,6 +648,48 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+     }
+   }, [currentSymbol, currentPrice, currentChangePct]);
+ 
++  // High performance FPS and frame drop monitor
++  useEffect(() => {
++    if (!isVisible) return;
++    let frameCount = 0;
++    let lastTime = performance.now();
++    let lastFrameTime = performance.now();
++    let rAFId: number;
++    const isDev = typeof process !== 'undefined' ? process.env?.NODE_ENV === 'development' : true;
++
++    const monitor = () => {
++      const now = performance.now();
++      const frameDuration = now - lastFrameTime;
++      lastFrameTime = now;
++
++      if (frameDuration > 32 && isDev) {
++        console.warn(`[Performance] Detect frame drop: ${frameDuration.toFixed(1)}ms (> 32ms)`);
++      }
++
++      frameCount++;
++      const delta = now - lastTime;
++      if (delta >= 1000) {
++        const fps = Math.round((frameCount * 1000) / delta);
++        if (fpsRef.current) {
++          fpsRef.current.innerText = `FPS: ${fps}`;
++          if (fps >= 50) {
++            fpsRef.current.style.color = '#22c55e';
++          } else if (fps >= 30) {
++            fpsRef.current.style.color = '#eab308';
++          } else {
++            fpsRef.current.style.color = '#ef4444';
++          }
++        }
++        frameCount = 0;
++        lastTime = now;
++      }
++      rAFId = requestAnimationFrame(monitor);
++    };
++
++    rAFId = requestAnimationFrame(monitor);
++    return () => cancelAnimationFrame(rAFId);
++  }, [isVisible]);
++
+   // Background fetch prices for all watchlist items
+   useEffect(() => {
+     try {
+@@ -308,7 +746,9 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+       const response = await fetch(`http://127.0.0.1:8765/search?q=${encodeURIComponent(searchQuery)}&market=${activeMarketTab}`);
+       if (response.ok) {
+         const data = await response.json();
+-        setSearchResults(data.results || []);
++        if (isMountedRef.current) {
++          setSearchResults(data.results || []);
++        }
+       }
+     } catch (e) {
+       console.error('搜索请求失败:', e);
+@@ -342,8 +782,6 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+     });
+   };
+ 
+-  // handleSelectSymbol has been declared at the top
+-
+   const initializedRef = useRef(false);
+   useEffect(() => {
+     if (!chartContainerRef.current || initializedRef.current) return;
+@@ -390,12 +828,18 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+           }];
+         },
+         getHistoryKLineData: async (symbolInfo: SymbolInfo, period: Period) => {
++          const currentLoadToken = ++loadTokenRef.current;
+           try {
+             const tf = periodToTimeframe(period);
+-            const result = await dataRouter.fetchKLine(symbolInfo.ticker, tf as any);
++            const result = await dataRouter.fetchKLine(symbolInfo.ticker, tf);
++            
++            if (currentLoadToken !== loadTokenRef.current) {
++              return [];
++            }
+             
+             if (result.data.length > 0) {
+-              const last = result.data[result.data.length - 1];
++              const last = result.data[result.data.length - 1] as KLineData & { turnover?: number };
++              lastBarTimestampRef.current = last.timestamp;
+               const prev = result.data[result.data.length - 2] ?? last;
+               const change = last.close - prev.close;
+               const changePct = prev.close ? (change / prev.close) * 100 : 0;
+@@ -418,32 +862,44 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+                 high: last.high,
+                 low: last.low,
+                 volume: last.volume ?? 0,
+-                turnover: (last as any).turnover ?? 0,
++                turnover: last.turnover ?? 0,
+               };
+ 
+               try {
+                 const fetchedInfo = await dataRouter.fetchSymbolInfo(symbolInfo.ticker);
+-                if (fetchedInfo && fetchedInfo.name) {
++                if (currentLoadToken === loadTokenRef.current && fetchedInfo && fetchedInfo.name) {
+                   info.name = fetchedInfo.name;
+                 }
+               } catch {}
+-              setInstrumentInfo(info);
++              
++              if (currentLoadToken === loadTokenRef.current) {
++                setInstrumentInfo(info);
++              }
++            }
++            if (currentLoadToken === loadTokenRef.current) {
++              setChartState('normal');
+             }
+-            setChartState('normal');
+             return result.data;
+           } catch (e) {
+             console.error('[Datafeed] getHistoryKLineData failed:', e);
++            if (currentLoadToken !== loadTokenRef.current) {
++              return [];
++            }
+             try {
+               const isHealthy = await dataRouter.checkAKShareHealth();
+-              if (!isHealthy) {
++              if (currentLoadToken === loadTokenRef.current) {
++                if (!isHealthy) {
++                  setChartState('offline');
++                  setIsOnline(false);
++                } else {
++                  setChartState('not_found');
++                }
++              }
++            } catch {
++              if (currentLoadToken === loadTokenRef.current) {
+                 setChartState('offline');
+                 setIsOnline(false);
+-              } else {
+-                setChartState('not_found');
+               }
+-            } catch {
+-              setChartState('offline');
+-              setIsOnline(false);
+             }
+             return [];
+           }
+@@ -455,6 +911,20 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+ 
+     proChartRef.current = pro;
+ 
++    const chart = (pro as any)._chartApi;
++    if (chart) {
++      chart.subscribeAction('onZoom', () => {
++        const currentSpace = chart.getBarSpace();
++        const MIN_SPACE = 3;
++        const MAX_SPACE = 40;
++        if (currentSpace < MIN_SPACE) {
++          chart.setBarSpace(MIN_SPACE);
++        } else if (currentSpace > MAX_SPACE) {
++          chart.setBarSpace(MAX_SPACE);
++        }
++      });
++    }
++
+     return () => {
+       if (proChartRef.current) {
+         try {
+@@ -682,6 +1152,13 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+             className="tj-pro-chart-container" 
+             style={chartState === 'offline' ? { filter: 'grayscale(1) opacity(0.5)', height: '100%' } : { height: '100%' }}
+           />
++          <button 
++            className="tj-record-trade-fab" 
++            onClick={handleFabClick}
++            title="录入交易记录"
++          >
++            ➕ 录入交易
++          </button>
+           {chartState !== 'normal' && (
+             <div className="tj-kline-error-overlay">
+               <div className="tj-error-overlay-content">
+@@ -932,7 +1409,7 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+                 {activeTab === 'trading' && (
+                   <TradingNotes
+                     currentSymbol={currentSymbol}
+-                    currentPeriod={currentPeriod}
++                    currentPeriod={formatPeriodText(currentPeriod)}
+                     currentPrice={currentPrice}
+                     onSelectSymbol={handleSelectSymbol}
+                     proChart={proChartRef.current}
+@@ -1056,9 +1533,11 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+         <div className="tj-status-left">
+           <span>当前标的: <b>{currentSymbol}</b></span>
+           <span className="tj-divider">|</span>
+-          <span>数据周期: <b>{currentPeriod === 'daily' ? '日线' : currentPeriod}</b></span>
++          <span>数据周期: <b>{formatPeriodText(currentPeriod)}</b></span>
+         </div>
+         <div className="tj-status-right">
++          <span ref={fpsRef} className="tj-fps-monitor" style={{ marginRight: 12, fontSize: '11px', fontWeight: 'bold' }}>FPS: --</span>
++          <span className="tj-divider" style={{ marginRight: 12 }}>|</span>
+           <span className={`tj-status-light ${isOnline ? 'tj-online' : 'tj-offline'}`} />
+           <span className="tj-status-text">
+             数据服务: {isOnline ? '连接正常' : '连接异常'}
+@@ -1066,6 +1545,184 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
+         </div>
+       </div>
+ 
++      {/* 消息 Toast */}
++      {toastMsg && (
++        <div className="tj-toast">
++          <span>{toastMsg}</span>
++        </div>
++      )}
++
++      {/* 交易录入玻璃拟态弹窗 */}
++      {showTradeForm && (
++        <div className="tj-trade-form-overlay" onClick={handleCloseForm}>
++          <div className="tj-trade-form-container" onClick={e => e.stopPropagation()}>
++            <div className="tj-trade-form-header">
++              <h3>📝 录入交易记录 ({currentSymbol})</h3>
++              <button className="tj-close-btn" onClick={handleCloseForm}>✕</button>
++            </div>
++            
++            <form onSubmit={handleFormSubmit} className="tj-trade-form">
++              {/* 方向切换 */}
++              <div className="tj-form-group">
++                <label>交易方向</label>
++                <div className="tj-side-selector">
++                  <button
++                    type="button"
++                    className={`tj-side-btn buy ${formSide === 'buy' ? 'active' : ''}`}
++                    onClick={() => setFormSide('buy')}
++                  >
++                    买入 (Long)
++                  </button>
++                  <button
++                    type="button"
++                    className={`tj-side-btn sell ${formSide === 'sell' ? 'active' : ''}`}
++                    onClick={() => setFormSide('sell')}
++                  >
++                    卖出 (Short)
++                  </button>
++                </div>
++              </div>
++
++              {/* 价格与数量 */}
++              <div className="tj-form-row">
++                <div className="tj-form-group tj-flex-1">
++                  <label>成交价格</label>
++                  <input
++                    type="number"
++                    step="any"
++                    placeholder="请输入成交价"
++                    value={formPrice}
++                    className={formErrors.price ? 'tj-input-error' : ''}
++                    onChange={e => {
++                      setFormPrice(e.target.value);
++                      if (formErrors.price) {
++                        setFormErrors(prev => ({ ...prev, price: '' }));
++                      }
++                    }}
++                  />
++                  {formErrors.price && <span className="tj-error-text">⚠️ {formErrors.price}</span>}
++                </div>
++
++                <div className="tj-form-group tj-flex-1" style={{ marginLeft: 12 }}>
++                  <label>成交数量</label>
++                  <input
++                    type="number"
++                    step="any"
++                    placeholder="请输入成交量"
++                    value={formAmount}
++                    className={formErrors.amount ? 'tj-input-error' : ''}
++                    onChange={e => {
++                      setFormAmount(e.target.value);
++                      if (formErrors.amount) {
++                        setFormErrors(prev => ({ ...prev, amount: '' }));
++                      }
++                    }}
++                  />
++                  {formErrors.amount && <span className="tj-error-text">⚠️ {formErrors.amount}</span>}
++                </div>
++              </div>
++
++              {/* 标签搜索与多选 */}
++              <div className="tj-form-group">
++                <label>归因标签检索</label>
++                <input
++                  type="text"
++                  placeholder="输入检索词过滤标签 (如: 双底, FOMO)..."
++                  value={tagSearchQuery}
++                  onChange={e => setTagSearchQuery(e.target.value)}
++                  className="tj-tag-search-input"
++                />
++              </div>
++
++              {/* 已选归因标签展示区 */}
++              {(selectedStrategyTags.length > 0 || selectedErrorTags.length > 0) && (
++                <div className="tj-selected-chips-row">
++                  <span className="tj-selected-label">已选：</span>
++                  <div className="tj-selected-chips-container">
++                    {selectedStrategyTags.map(tag => (
++                      <span
++                        key={`selected-strat-${tag}`}
++                        className="tj-tag-chip tj-strategy active"
++                        onClick={() => toggleStrategyTag(tag)}
++                      >
++                        #{tag} ✕
++                      </span>
++                    ))}
++                    {selectedErrorTags.map(tag => (
++                      <span
++                        key={`selected-err-${tag}`}
++                        className="tj-tag-chip tj-error active"
++                        onClick={() => toggleErrorTag(tag)}
++                      >
++                        #{tag} ✕
++                      </span>
++                    ))}
++                  </div>
++                </div>
++              )}
++
++              {/* 策略标签 */}
++              <div className="tj-form-group">
++                <label className="tj-sub-label">策略标签 (可多选)</label>
++                <div className="tj-tags-chips-container">
++                  {filteredPatterns.map(tag => {
++                    const isSelected = selectedStrategyTags.includes(tag);
++                    return (
++                      <span
++                        key={tag}
++                        className={`tj-tag-chip tj-strategy ${isSelected ? 'active' : ''}`}
++                        onClick={() => toggleStrategyTag(tag)}
++                      >
++                        #{tag}
++                      </span>
++                    );
++                  })}
++                  {filteredPatterns.length === 0 && <span className="tj-no-tags-tip">无匹配策略标签</span>}
++                </div>
++              </div>
++
++              {/* 心理/错误标签 */}
++              <div className="tj-form-group">
++                <label className="tj-sub-label">心理与错误归因 (可多选)</label>
++                <div className="tj-tags-chips-container">
++                  {filteredPsychology.map(tag => {
++                    const isSelected = selectedErrorTags.includes(tag);
++                    return (
++                      <span
++                        key={tag}
++                        className={`tj-tag-chip tj-error ${isSelected ? 'active' : ''}`}
++                        onClick={() => toggleErrorTag(tag)}
++                      >
++                        #{tag}
++                      </span>
++                    );
++                  })}
++                  {filteredPsychology.length === 0 && <span className="tj-no-tags-tip">无匹配心理标签</span>}
++                </div>
++              </div>
++
++              {/* 表单页脚 */}
++              <div className="tj-trade-form-footer">
++                <button 
++                  type="button" 
++                  className="tj-footer-cancel-btn" 
++                  onClick={handleCloseForm}
++                >
++                  取消
++                </button>
++                <button 
++                  type="submit" 
++                  className={`tj-footer-confirm-btn ${isSubmitting ? 'tj-btn-loading' : ''}`}
++                  disabled={isSubmitting}
++                >
++                  {isSubmitting ? '写入中...' : '确认录入'}
++                </button>
++              </div>
++            </form>
++          </div>
++        </div>
++      )}
++
+     </div>
+   );
+ };

@@ -1,0 +1,201 @@
+test_scenario:
+  id: "TS-002"
+  name: "组合业绩审计 — 用户验收测试"
+  delivery_id: "DD-002"
+  type: "user_acceptance"
+  status: "ready"
+  tester: "designer"
+  created_at: "2026-05-21T00:00:00+08:00"
+
+test_objectives:
+  - "验证 DD-002 实现是否符合页面规格设计"
+  - "确认多币种 NAV 折算精度 100% 无误"
+  - "确认盈亏日历红绿标识和悬停交互正确"
+  - "确认归因标签 AND/OR 过滤联动实时准确"
+  - "验证双击交易行穿透至 Logseq Block 功能"
+  - "验证一键导出本地 MD 审计报告"
+
+test_environment:
+  devices:
+    - "Desktop 1440×900 — Chrome 90+ (Logseq WebView)"
+    - "Desktop 1440×900 — Edge 90+"
+  test_data:
+    base_currency: "CNY"
+    accounts:
+      - name: "A股账户"
+        currency: "CNY"
+        balance: 150000
+      - name: "美股账户"
+        currency: "USD"
+        balance: 25000
+
+happy_path:
+  - id: "HP-001"
+    name: "完整绩效审计最短路径"
+    priority: "critical"
+    steps:
+      - action: "在 Logseq 中切换到 Dashboard 标签页"
+        expected: "绩效看板渲染完成，选择默认基准币种 CNY"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-states"
+      - action: "切换账户选择为「全部账户」，基准币种为 CNY"
+        expected: "NAV 折线图实时重算并渲染多账户合并净值曲线，< 100ms"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-sections"
+      - action: "鼠标悬停 NAV 折线图上某个数据点"
+        expected: "玻璃悬停卡弹出，显示当日总资产（CNY）+ 各子账户分项 + 当日涨跌幅"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-sections"
+      - action: "查看本月盈亏日历"
+        expected: "日历网格完整渲染，有交易的日子红绿标识正确（盈利绿/亏损红/无交易无色），< 100ms"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-sections"
+      - action: "悬停日历中有交易的单元格"
+        expected: "悬停卡显示当日净盈亏 / 交易总笔数 / 胜率 / 最大单笔亏损"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-sections"
+      - action: "点击「进入归因分类过滤器」按钮"
+        expected: "导航至 02.2 归因过滤视图，左侧标签区和汇总卡渲染完成"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.2-attribution-filter-view/02.2-attribution-filter-view.md#page-sections"
+      - action: "勾选 #FOMO 标签，再勾选 #突破买入（AND 逻辑）"
+        expected: "汇总卡实时更新命中交易数/累计盈亏/胜率/最大回撤，下方交易表同步过滤，< 50ms"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.2-attribution-filter-view/02.2-attribution-filter-view.md#page-sections"
+      - action: "双击交易表格中的某一行"
+        expected: "Logseq 侧边栏在 < 100ms 内自动聚焦并打开对应的原始日记 Block"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.2-attribution-filter-view/02.2-attribution-filter-view.md#page-sections"
+      - action: "点击右下角金色导出 FAB"
+        expected: "结构化 MD 审计报告生成并复制至剪贴板，Toast 提示「已复制审计报告」"
+        design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.2-attribution-filter-view/02.2-attribution-filter-view.md#page-sections"
+    success_criteria:
+      - "NAV 图表 + 盈亏日历渲染 < 100ms"
+      - "标签过滤联动 < 50ms"
+      - "双击穿透定位 < 100ms"
+      - "折合精度 100%（手动对账验证）"
+
+error_states:
+  - id: "ES-001"
+    name: "无交易记录空状态"
+    priority: "high"
+    steps:
+      - action: "在 Logseq DB 中没有任何 TradeRecord 时打开 Dashboard"
+      - expected: "NAV 区域显示'暂无交易数据，开始你的第一笔复盘吧'"
+      - expected: "盈亏日历空白，月标题正常显示但无红绿标识"
+      - expected: "归因过滤按钮 disabled 并提示'暂无标签数据'"
+      - design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-states"
+    success_criteria:
+      - "空状态提示友好，引导用户回到 DD-001 记录交易"
+
+  - id: "ES-002"
+    name: "汇率数据源不可用"
+    priority: "medium"
+    steps:
+      - action: "在外部汇率 API 不可用的情况下切换基准币种"
+      - expected: "系统使用本地缓存的最新汇率进行计算"
+      - expected: "底部状态栏或 NAV 图表旁提示'汇率最后更新于 YYYY-MM-DD'"
+      - expected: "不阻塞看板正常渲染"
+      - design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-states"
+    success_criteria:
+      - "降级不中断，用户可见数据时效性提示"
+
+  - id: "ES-003"
+    name: "剪贴板权限未授予"
+    priority: "low"
+    steps:
+      - action: "在浏览器未授予剪贴板权限时点击导出 FAB"
+      - expected: "Toast 提示'无法自动复制，请手动选择并复制以下报告'并展开报告文本区域"
+      - design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.2-attribution-filter-view/02.2-attribution-filter-view.md#page-states"
+    success_criteria:
+      - "降级路径可用，用户可手动完成导出"
+
+edge_cases:
+  - id: "EC-001"
+    name: "大量交易记录（5000+ 笔）"
+    priority: "medium"
+    steps:
+      - action: "在有 5000+ 笔 TradeRecord 的情况下打开 Dashboard"
+      - expected: "NAV 图表和盈亏日历使用聚合查询渲染，< 100ms"
+      - expected: "归因过滤表使用虚拟滚动，首屏渲染 50 行"
+      - design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#technical-notes"
+    success_criteria:
+      - "大数据量下首屏加载延迟不增加"
+      - "表格滚动流畅无卡顿"
+
+  - id: "EC-002"
+    name: "快速切换标签防抖"
+    priority: "medium"
+    steps:
+      - action: "连续快速勾选/取消 5 个不同标签"
+      - expected: "50ms 防抖窗口内只执行最终组合过滤，无中间闪烁"
+      - design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.2-attribution-filter-view/02.2-attribution-filter-view.md#technical-notes"
+    success_criteria:
+      - "无重复请求或渲染闪烁"
+
+  - id: "EC-003"
+    name: "跨月盈亏日历切换"
+    priority: "low"
+    steps:
+      - action: "点击盈亏日历月份箭头切换至上月/下月"
+      - expected: "日历以淡入淡出动画（< 150ms）加载新月份，NDA 图表不变"
+      - design_ref: "C-UX-Scenarios/02-yales-portfolio-performance-audit/02.1-daily-performance-dashboard/02.1-daily-performance-dashboard.md#page-sections"
+    success_criteria:
+      - "月切换动画流畅，数据正确对应目标月份"
+
+design_system_checks:
+  - id: "DS-001"
+    name: "Dashboard 组件一致性验证"
+    checks:
+      - component: "2x3 Grid of Glass Metric Cards"
+        instances: ["Net PnL Card", "Max Drawdown Card"]
+        verify:
+          - "玻璃拟态 blur 值与 DD-001 表单一致"
+          - "卡间距与 Space Token 一致"
+          - "数值字体大小与 Typography Token 一致"
+      - component: "PnL Calendar Matrix Card"
+        instances: ["Dashboard Calendar"]
+        verify:
+          - "单元格 grid 尺寸规整"
+          - "盈利绿 / 亏损红色值与 Design Token 一致"
+      - component: "Primary Glowing Action CTA"
+        instances: ["进入归因过滤器按钮"]
+        verify:
+          - "与 DD-001 确认写入/绑定状态按钮样式一致"
+    design_ref: "D-Design-System/00-design-system.md"
+
+accessibility:
+  - id: "A11Y-001"
+    name: "图表数据可访问性"
+    priority: "high"
+    steps:
+      - action: "使用屏幕阅读器导航 NAV 图表和盈亏日历"
+      - verify:
+          - "NAV 图表有 aria-label 描述当前走势"
+          - "盈亏日历单元格有 aria-label 描述日期和金额"
+          - "过滤标签复选框有可读 label"
+    success_criteria:
+      - "关键数据通过屏幕阅读器可访问"
+
+  - id: "A11Y-002"
+    name: "暗黑主题对比度"
+    priority: "high"
+    steps:
+      - action: "使用 contrast checker 验证关键元素"
+      - verify:
+          - "盈亏日历红绿色与背景对比度 ≥ 4.5:1"
+          - "Metric Card 数字文字对比度 ≥ 4.5:1"
+          - "表格行文字对比度 ≥ 4.5:1"
+    success_criteria:
+      - "全部关键元素通过 WCAG AA 标准"
+
+sign_off:
+  required_for_approval:
+    - "HP-001 全部步骤通过"
+    - "ES-001 空状态正确"
+    - "EC-001 大数据量不卡顿"
+    - "无 Critical 或 High 严重缺陷"
+    - "Design System 合规率 ≥ 95%"
+    - "A11Y-001 通过"
+    - "折算精度手动对账验证 100%"
+
+  designer_approval:
+    statement: |
+      我确认 DD-002（组合业绩审计）的实现与设计规格完全一致，
+      通过所有验收测试标准，满足 Trigger Map 定义的次要业务目标
+      「跨市场多币种资产对账与归因」的质量要求。
+
+    signature: "________________"
+    date: "________________"

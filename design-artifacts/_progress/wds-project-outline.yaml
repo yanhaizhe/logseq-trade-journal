@@ -1,0 +1,17 @@
+project_name: "logseq-trade-journal"
+project_type: "greenfield"
+product_complexity: "complex"
+tech_stack: "react"
+component_library: "custom"
+root_folder: "design-artifacts"
+existing_materials:
+  has_materials: false
+brief_level: "complete"
+strategic_analysis: "full"
+project_context:
+  stakes: "personal"
+working_relationship:
+  involvement: "highly_collaborative"
+  role: "developer_owner"
+  recommendation_style: "recommend_with_rationale"
+date_created: "2026-05-21"

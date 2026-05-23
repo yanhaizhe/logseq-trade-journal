@@ -1,0 +1,211 @@
+test_scenario:
+  id: "TS-003"
+  name: "本地安全引导 — 用户验收测试"
+  delivery_id: "DD-003"
+  type: "user_acceptance"
+  status: "ready"
+  tester: "designer"
+  created_at: "2026-05-21T00:00:00+08:00"
+
+test_objectives:
+  - "验证首次安装插件的完整引导流程"
+  - "确认自检仪表盘三服务（FastAPI / Tushare / 本地数据库）状态指示正确"
+  - "确认红灯错误信息与排查命令一键复制可用"
+  - "验证 Token 配置弹窗的遮罩切换、校验、保存全流程"
+  - "确保 100% 本地环回通信，零外部网络流出"
+  - "验证部分已有代码实现与规格的一致性"
+
+test_environment:
+  devices:
+    - "Desktop 1440×900 — Chrome 90+ (Logseq WebView)"
+    - "Desktop 1440×900 — Edge 90+"
+  test_data:
+    fastapi_port: 8765
+    valid_token: "a1b2c3d4e5f6...（有效 Tushare Token）"
+    invalid_token: "invalid_test_token_123"
+
+happy_path:
+  - id: "HP-001"
+    name: "首次安装完整引导流程"
+    priority: "critical"
+    steps:
+      - action: "首次安装并启用 Logseq Trade Journal 插件"
+        expected: "进入 03.1 欢迎自检页面，200ms 内完成自检并渲染状态指示灯"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-states"
+      - action: "查看 FastAPI 状态指示"
+        expected: "若 FastAPI 已启动则绿灯 + 文本'运行中'；若未启动则红灯 + 错误码 + 排查命令"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-sections"
+      - action: "若红灯：悬停 FastAPI 行右侧帮助图标"
+        expected: "磨砂玻璃卡片显示 ECONNREFUSED 错误码和 './start.sh' 命令"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-sections"
+      - action: "点击悬停卡片中的启动命令"
+        expected: "命令背景微闪 100ms，文字复制至剪贴板，显示'指令已复制'绿字"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-sections"
+      - action: "启动 FastAPI 后点击「重新自检」按钮"
+        expected: "所有指示灯转为橙色呼吸动画，150ms 后更新为最新自检结果"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-sections"
+      - action: "点击「配置密钥」按钮"
+        expected: "03.2 磨砂玻璃 Token 配置弹窗弹出，输入框默认遮罩模式"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#page-sections"
+      - action: "输入有效 Tushare Token，点击眼睛图标切换明文/遮罩"
+        expected: "输入框 type 在 password/text 间切换，图标在眼睛/闭眼间过渡，< 100ms"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#page-sections"
+      - action: "点击「保存并测试」"
+        expected: "按钮显示 loading 动画，< 2s 内完成校验，校验通过后弹窗关闭"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#page-sections"
+      - action: "返回 03.1 欢迎页，等待二次自检完成"
+        expected: "Tushare Token 指示灯变为绿色 + 文本'已验证'，全部三灯绿色"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-states"
+      - action: "点击「进入工作区」按钮"
+        expected: "导航至 01.1 分屏 K 线与笔记主工作区（DD-001）"
+        design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-sections"
+    success_criteria:
+      - "自检响应 < 200ms"
+      - "Token 校验 < 2s"
+      - "全程 1 分钟内完成引导进入工作区"
+
+error_states:
+  - id: "ES-001"
+    name: "FastAPI 未启动"
+    priority: "critical"
+    steps:
+      - action: "在 FastAPI 进程未运行时打开插件"
+      - expected: "FastAPI 状态灯红色 + 文本'未连接 (127.0.0.1:8765)'"
+      - expected: "悬停帮助图标显示 ECONNREFUSED 及 './start.sh' 命令"
+      - expected: "命令支持一键复制"
+      - expected: "「进入工作区」按钮 disabled 并提示'请先启动本地服务'"
+      - design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-states"
+    success_criteria:
+      - "故障排查路径清晰可操作"
+      - "服务恢复后「重新自检」自动刷新状态"
+
+  - id: "ES-002"
+    name: "Tushare Token 无效"
+    priority: "high"
+    steps:
+      - action: "在弹窗中输入无效 Token 并点击「保存并测试」"
+      - expected: "校验返回失败，弹窗不关闭，表单顶部显示红色提示'校验失败：Token 无效'"
+      - expected: "用户可重新输入或点击取消放弃此次修改"
+      - design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#page-states"
+    success_criteria:
+      - "无效 Token 不被写入 .env 文件"
+      - "错误提示清晰，不阻塞重试"
+
+  - id: "ES-003"
+    name: "Token 校验超时"
+    priority: "medium"
+    steps:
+      - action: "在网络环境极差或 Tushare 服务不可达时点击「保存并测试」"
+      - expected: "5s 超时后提示'网络超时，请检查本地服务状态'，不写入 .env"
+      - expected: "弹窗保持打开，用户可取消或稍后重试"
+      - design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#page-states"
+    success_criteria:
+      - "超时不阻塞，不写入无效数据"
+
+  - id: "ES-004"
+    name: "空 Token 提交阻止"
+    priority: "medium"
+    steps:
+      - action: "清空输入框，点击「保存并测试」"
+      - expected: "按钮半透明不可点击，输入框下方提示'最少 20 个字符'"
+      - design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#page-sections"
+    success_criteria:
+      - "前端校验阻止无效提交"
+
+edge_cases:
+  - id: "EC-001"
+    name: "端口冲突"
+    priority: "medium"
+    steps:
+      - action: "8765 端口被其他进程占用时启动 FastAPI 失败"
+      - expected: "欢迎页自检显示红灯，悬停显示 'Port 8765 被占用' 和 'lsof -i :8765' 命令"
+      - design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.1-welcome-screen/03.1-welcome-screen.md#page-states"
+    success_criteria:
+      - "端口冲突场景有明确排查指引"
+
+  - id: "EC-002"
+    name: "快速点击防抖"
+    priority: "medium"
+    steps:
+      - action: "连续快速点击「保存并测试」3 次"
+      - expected: "仅触发一次校验，按钮首次点击后 disabled + loading"
+      - design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#technical-notes"
+    success_criteria:
+      - "无重复请求或重复写入"
+
+  - id: "EC-003"
+    name: "Esc 键取消编辑"
+    priority: "low"
+    steps:
+      - action: "在 Token 弹窗中修改内容后按 Esc 键"
+      - expected: "弹窗关闭，放弃修改，.env 文件不变"
+      - design_ref: "C-UX-Scenarios/03-yales-local-onboarding/03.2-token-settings-form/03.2-token-settings-form.md#page-sections"
+    success_criteria:
+      - "Esc 取消不残留修改"
+
+design_system_checks:
+  - id: "DS-001"
+    name: "引导页组件一致性验证"
+    checks:
+      - component: "Frosted Glass Card Panel"
+        instances: ["欢迎主卡片 (03.1)", "Token 弹窗 (03.2)"]
+        verify:
+          - "与 DD-001 交易表单毛玻璃 blur 值和透明度一致"
+          - "圆角半径与全局 rounded-lg 规范一致"
+      - component: "Primary Gold Glowing Button"
+        instances: ["进入工作区按钮 (03.1)", "保存并测试按钮 (03.2)"]
+        verify:
+          - "渐变色与 DD-001/DD-002 所有 Primary Button 一致"
+          - "Hover 发光效果和 Active 缩放反馈统一"
+      - component: "Status Dot Indicator"
+        instances: ["FastAPI 灯 (03.1)", "Tushare 灯 (03.1)"]
+        verify:
+          - "绿灯色值一致"
+          - "黄灯色值一致"
+          - "红灯色值一致"
+    design_ref: "D-Design-System/00-design-system.md"
+
+accessibility:
+  - id: "A11Y-001"
+    name: "键盘可达性"
+    priority: "high"
+    steps:
+      - action: "在弹窗中使用键盘完成全部操作"
+      - verify:
+          - "Tab 键可在输入框、眼睛图标、取消、保存按钮间切换"
+          - "Enter 键触发提交"
+          - "Esc 键关闭弹窗"
+          - "状态指示灯有 aria-label 描述"
+    success_criteria:
+      - "弹窗全键盘可操作"
+
+  - id: "A11Y-002"
+    name: "暗黑主题状态灯可分辨"
+    priority: "high"
+    steps:
+      - action: "对比验证绿灯/黄灯/红灯在暗黑背景下的可分辨性"
+      - verify:
+          - "绿灯与黄灯色相差距 > 30°（避免色盲混淆）"
+          - "状态灯不仅仅依赖颜色传达（辅以图标或文本）"
+    success_criteria:
+      - "色盲用户可通过图标+文本区分三种状态"
+
+sign_off:
+  required_for_approval:
+    - "HP-001 全部步骤通过"
+    - "ES-001 红灯告警 + 命令复制可用"
+    - "ES-002 无效 Token 正确拒绝"
+    - "EC-002 防抖有效"
+    - "无 Critical 或 High 严重缺陷"
+    - "Design System 合规率 ≥ 95%"
+    - "A11Y-001 / A11Y-002 通过"
+    - "部分已有代码实现与规格对照一致性确认"
+
+  designer_approval:
+    statement: |
+      我确认 DD-003（本地安全引导）的实现与设计规格完全一致，
+      通过所有验收测试标准，满足 Trigger Map 定义的第三业务目标
+      「100% 本地数据绝对隐私安全」的质量要求。
+
+    signature: "________________"
+    date: "________________"

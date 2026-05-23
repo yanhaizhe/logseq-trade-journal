@@ -57,3 +57,22 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     version: str = "1.0.0"
     providers: dict[str, bool] = {}
+
+
+class SaveTokenRequest(BaseModel):
+    """保存 Token 请求"""
+    token: str = Field(..., description="Tushare API Token")
+
+
+class SaveTokenResponse(BaseModel):
+    """保存 Token 响应"""
+    status: str = "success"
+    message: str = "Token 保存成功"
+
+
+class CheckCacheResponse(BaseModel):
+    """检查本地 SQLite 缓存响应"""
+    exists: bool = False
+    has_data: bool = False
+    message: str = ""
+

@@ -14,6 +14,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      'klinecharts': path.resolve(__dirname, 'src/core/klinecharts-wrapper.ts'),
     },
   },
   build: {

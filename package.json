@@ -18,6 +18,7 @@
   "dependencies": {
     "@klinecharts/pro": "^0.1.1",
     "@logseq/libs": "^0.2.3",
+    "build": "^0.1.4",
     "dayjs": "^1.11.10",
     "idb": "^8.0.3",
     "klinecharts": "^9.8.6",

@@ -87,6 +87,14 @@ const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recheckKey, setRecheckKey] = useState(0);
 
+  // 记录并追踪当前面板布局位置 (针对 iframe 跨域沙盒无法通过 window.frameElement 修改的替代方案)
+  const layoutRef = useRef({
+    width: 320,
+    height: 720,
+    left: 0,
+    top: 0
+  });
+
   // 分屏比例与尺寸初始化
   useEffect(() => {
     const storedRatio = safeGetStorage('tj_split_ratio');
@@ -101,13 +109,35 @@ const App: React.FC = () => {
       setChartConfig({ symbol: '' });
     }
 
+    const totalWidth = getParentWidth();
+    const totalHeight = getParentHeight();
+    const initialW = Math.round(Math.max(320, totalWidth * ratio));
+    const initialLeft = Math.round(Math.max(0, totalWidth - initialW));
+    const initialH = totalHeight;
+
+    layoutRef.current = {
+      width: initialW,
+      height: initialH,
+      left: initialLeft,
+      top: 0
+    };
+
+    const ls = (window as any).logseq;
+    if (ls) {
+      ls.setMainUIInlineStyle({
+        zIndex: 9999,
+        position: 'fixed',
+        top: '0px',
+        left: `${initialLeft}px`,
+        width: `${initialW}px`,
+        height: '100%',
+        pointerEvents: 'none',
+      });
+    }
+
     const iframe = getFrameElement();
     if (iframe) {
-      const totalWidth = getParentWidth();
-      const initialW = Math.round(Math.max(320, totalWidth * ratio));
       iframe.style.width = `${initialW}px`;
-
-      const initialLeft = Math.round(Math.max(0, totalWidth - initialW));
       iframe.style.left = `${initialLeft}px`;
       iframe.style.top = '0px';
 
@@ -296,9 +326,9 @@ const App: React.FC = () => {
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const iframe = getFrameElement();
-    const startLeft = iframe ? (parseInt(iframe.style.left) || 0) : 0;
-    const startTop = iframe ? (parseInt(iframe.style.top) || 0) : 0;
+    const startLeft = layoutRef.current.left;
+    const startTop = layoutRef.current.top;
+    const currentW = layoutRef.current.width;
 
     const currentTarget = e.currentTarget as HTMLElement;
     try {
@@ -308,9 +338,29 @@ const App: React.FC = () => {
     const onPointerMove = (ev: PointerEvent) => {
       const left = Math.round(startLeft + ev.clientX - startX);
       const top = Math.round(startTop + ev.clientY - startY);
+      const safeLeft = Math.max(0, left);
+      const safeTop = Math.max(0, top);
+
+      layoutRef.current.left = safeLeft;
+      layoutRef.current.top = safeTop;
+
+      const ls = (window as any).logseq;
+      if (ls) {
+        ls.setMainUIInlineStyle({
+          zIndex: 9999,
+          position: 'fixed',
+          top: `${safeTop}px`,
+          left: `${safeLeft}px`,
+          width: `${currentW}px`,
+          height: '100%',
+          pointerEvents: 'none',
+        });
+      }
+
+      const iframe = getFrameElement();
       if (iframe) {
-        iframe.style.left = `${Math.max(0, left)}px`;
-        iframe.style.top = `${Math.max(0, top)}px`;
+        iframe.style.left = `${safeLeft}px`;
+        iframe.style.top = `${safeTop}px`;
       }
     };
 
@@ -334,9 +384,10 @@ const App: React.FC = () => {
     const startX = e.clientX;
     const startY = e.clientY;
     const iframe = getFrameElement();
-    const startW = iframe?.clientWidth ?? window.innerWidth;
-    const startH = iframe?.clientHeight ?? window.innerHeight;
-    const startLeft = iframe ? (parseInt(iframe.style.left) || 0) : 0;
+    const startW = layoutRef.current.width;
+    const startH = layoutRef.current.height;
+    const startLeft = layoutRef.current.left;
+    const startTop = layoutRef.current.top;
 
     const currentTarget = e.currentTarget as HTMLElement;
     try {
@@ -372,6 +423,24 @@ const App: React.FC = () => {
       newH = Math.round(newH);
       newLeft = Math.round(newLeft);
 
+      layoutRef.current.width = newW;
+      layoutRef.current.height = newH;
+      layoutRef.current.left = newLeft;
+
+      const ls = (window as any).logseq;
+      if (ls) {
+        ls.setMainUIInlineStyle({
+          zIndex: 9999,
+          position: 'fixed',
+          top: `${startTop}px`,
+          left: `${newLeft}px`,
+          width: `${newW}px`,
+          height: `${newH}px`,
+          pointerEvents: 'none',
+        });
+      }
+
+      const iframe = getFrameElement();
       if (iframe) {
         iframe.style.width = `${newW}px`;
         iframe.style.height = `${newH}px`;
@@ -451,12 +520,33 @@ const App: React.FC = () => {
             const totalHeight = getParentHeight();
             const defaultW = Math.round(Math.max(320, totalWidth * 0.5));
             const defaultH = Math.round(Math.min(720, Math.max(200, totalHeight)));
+            const defaultLeft = totalWidth - defaultW;
+
+            layoutRef.current = {
+              width: defaultW,
+              height: defaultH,
+              left: defaultLeft,
+              top: 0
+            };
+
+            const ls = (window as any).logseq;
+            if (ls) {
+              ls.setMainUIInlineStyle({
+                zIndex: 9999,
+                position: 'fixed',
+                top: '0px',
+                left: `${defaultLeft}px`,
+                width: `${defaultW}px`,
+                height: `${defaultH}px`,
+                pointerEvents: 'none',
+              });
+            }
 
             const iframe = getFrameElement();
             if (iframe) {
               iframe.style.width = `${defaultW}px`;
               iframe.style.height = `${defaultH}px`;
-              iframe.style.left = `${totalWidth - defaultW}px`;
+              iframe.style.left = `${defaultLeft}px`;
               iframe.style.top = '0px';
             }
 

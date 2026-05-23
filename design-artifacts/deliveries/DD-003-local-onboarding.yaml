@@ -1,0 +1,167 @@
+delivery:
+  id: "DD-003"
+  name: "本地安全引导 Local Onboarding"
+  type: "user_flow"
+  status: "in_development"
+  priority: "high"
+  created_by: "yale"
+  created_at: "2026-05-21T00:00:00+08:00"
+  updated_at: "2026-05-21T00:00:00+08:00"
+  handed_off_at: "2026-05-21T00:00:00+08:00"
+  assigned_to: "yale"
+  handoff_log: "deliveries/DD-003-handoff-log.md"
+  version: "1.0"
+
+description: |
+  DD-003 是本地安全引导交付包，对应 Trigger Map 的第三业务目标「100% 本地数据绝对隐私安全」。
+  首次启动插件或本地服务出现异常时，Yale 进入欢迎自检页面，一眼看到 FastAPI 后台进程、
+  Tushare Token 状态、本地数据库的健康检测结果；若某项异常则提供一键复制的终端排查指令，
+  并通过磨砂玻璃弹窗快捷配置 API 密钥。全部绿灯后点击「进入工作区」即进入 DD-001 复盘页。
+  全程 100% 本地环回通信，零外部网络流出。
+
+user_value:
+  problem: |
+    本地环境配置复杂（FastAPI 进程状态、Tushare Token 有效性、端口冲突等），
+    首次使用或环境变更时缺乏直观的状态仪表盘，导致后续 K 线加载失败、
+    复盘心流被打断，用户不知如何排查。
+  solution: |
+    极简自检仪表盘：一键检测全部本地依赖服务，绿灯/黄灯/红灯直观反馈；
+    红灯悬停显示错误码和可一键复制的排查命令；磨砂玻璃弹窗快捷配置 API Token，
+    保存前先本地校验有效性，确保环境就绪后再进入工作区。
+  success_criteria:
+    - "自检响应 < 200ms，状态指示灯流畅渲染"
+    - "1 分钟内完成 Token 配置与二次自检"
+    - "100% 本地环回通信，零外部网络流出"
+    - "排查指令一键复制，用户无需手敲命令"
+
+design_artifacts:
+  scenarios:
+    - id: "03-yales-local-onboarding"
+      path: "C-UX-Scenarios/03-yales-local-onboarding/"
+      screens:
+        - "03.1-welcome-screen"
+        - "03.2-token-settings-form"
+
+  user_flows:
+    - name: "首次引导最短路径"
+      entry: "首次安装插件 / 点击状态栏错误图标"
+      exit: "进入 DD-001 复盘工作区 ✓"
+      steps:
+        - "03.1: 自检仪表盘 → 识别服务状态"
+        - "03.2: 配置 Tushare Token → 保存并校验"
+        - "03.1: 二次自检全绿 → 点击进入工作区"
+
+  design_system:
+    components:
+      - "Frosted Glass Card Panel"
+      - "Welcome Title Block"
+      - "Secondary Compact Button (Rotating Arrow Icon)"
+      - "Health Check Rows Grid (Stacked Vertical Panels)"
+      - "Status Dot Indicator (Green/Yellow/Red)"
+      - "HSL Slate Dark Terminal Style Block"
+      - "Secondary Button"
+      - "Primary Gold Glowing Button"
+      - "Glassmorphism Card Overlay (Modal)"
+      - "Maskable Password Input"
+      - "Eye/Eye-Slash Icon Toggle"
+      - "Inline Hyperlink"
+    path: "D-Design-System/"
+
+technical_requirements:
+  platform:
+    frontend: "React 18 + TypeScript"
+    backend: "Python FastAPI (localhost loopback)"
+    target: "Logseq Desktop Plugin (Chrome/Edge WebView)"
+
+  integrations:
+    - name: "FastAPI Health Check"
+      purpose: "GET /health 端点检测后台进程存活及端口可达性"
+      required: true
+    - name: "Tushare Token Validation"
+      purpose: "通过本地 FastAPI 代理向 Tushare 发起测试连接，验证 Token 有效性"
+      required: true
+    - name: "本地 .env 文件读写"
+      purpose: "通过 FastAPI 端点安全写入/读取 Tushare Token 至本地 .env"
+      required: true
+    - name: "Logseq Settings API"
+      purpose: "可选：通过 Logseq 插件设置存储 Token（备选方案）"
+      required: false
+
+  data_models:
+    - name: "HealthCheckResult"
+      fields:
+        - "service_name"
+        - "status"
+        - "error_code"
+        - "fix_command"
+        - "last_checked"
+    - name: "TokenConfig"
+      fields:
+        - "provider"
+        - "token_masked"
+        - "verified"
+        - "last_verified"
+
+  performance:
+    - "自检响应 < 200ms"
+    - "Token 校验响应 < 2s"
+    - "Token 明文/遮罩切换 < 100ms"
+
+acceptance_criteria:
+  functional:
+    - "进入欢迎页后 200ms 内完成全部服务自检并渲染状态指示灯"
+    - "FastAPI / Tushare Token / 本地数据库三项独立显示绿黄红状态"
+    - "红灯悬停显示错误码（如 ECONNREFUSED）和可一键复制的排查命令"
+    - "一键复制按钮点击后指令自动复制至剪贴板并显示「指令已复制」绿字"
+    - "点击「配置密钥」弹出磨砂玻璃模态弹窗，Token 输入框默认遮罩"
+    - "点击眼睛图标切换 Token 明文/遮罩，延迟 < 100ms"
+    - "点击「保存并测试」调用本地接口校验 Token 有效性，校验通过才写入 .env"
+    - "保存成功后自动关闭弹窗并触发二次自检，状态灯全部更新"
+    - "全部绿灯时「进入工作区」按钮可用，点击后加载 DD-001 复盘页"
+
+  non_functional:
+    - "100% 本地环回通信（127.0.0.1:8765），零外部网络流出"
+    - "Esc 键关闭弹窗，Tab 键在表单元素间切换"
+    - "暗黑主题下绿灯/黄灯/红灯颜色可分辨"
+    - "Token 写入 .env 文件具有原子性（先写临时文件再 rename）"
+
+  edge_cases:
+    - "FastAPI 未启动 → 状态灯红色，显示一键复制的 './start.sh' 启动命令"
+    - "Token 为空 → 校验按钮半透明不可点击，下方实时提示'最少 20 个字符'"
+    - "Token 校验超时（>5s）→ 提示'网络超时，请检查本地服务状态'，不写入 .env"
+    - "端口冲突 → 红灯悬停显示 'Port 8765 被占用' 及 lsof 排查命令"
+    - "快速点击「保存并测试」→ 防抖，首请求完成前按钮 disabled"
+
+testing_guidance:
+  user_testing:
+    - "首次安装场景：从零开始走通自检 → 配置 → 二次自检 → 进入工作区"
+    - "异常场景：关闭 FastAPI 后进入欢迎页，验证红灯告警和命令复制"
+    - "Token 场景：输入无效 Token 验证校验拒绝，输入有效 Token 验证通过"
+  qa_testing:
+    - "浏览器: Chrome 90+, Edge 90+"
+    - "视口: 1440×900 桌面端居中仪表盘"
+    - "暗色主题下状态灯颜色可分辨"
+  design_validation:
+    - "逐页对照 ASCII 线框图验证布局"
+    - "对照 19 个 OBJECT ID 确认全部组件实现"
+    - "验证 Terminal 风格代码块字体为等宽 (JetBrains Mono / Fira Code)"
+
+estimated_complexity:
+  size: "small"
+  effort: "0.5-1 周"
+  risk: "low"
+  risk_rationale: "自检仪表盘为纯前端状态展示，Token 弹窗为标准表单交互。核心风险已在 FastAPI 基础设施中解决，DD-003 主要是集成和 UI 层工作。部分组件（WelcomeScreen、TokenSettingsModal）在 src/ 中已有初始实现。"
+  dependencies:
+    - "FastAPI /health 端点就绪"
+    - "FastAPI Token 校验端点就绪"
+
+notes: |
+  对应 Trigger Map 第三目标「100% 本地数据绝对隐私安全」。DD-003 是用户进入 DD-001/DD-002
+  的「门禁」——确保本地环境就绪，否则后续功能无法使用。
+
+  关键设计决策：
+  - 状态灯绿/黄/红三色语义：绿=正常、黄=降级可用、红=不可用
+  - Terminal 风格代码块使用等宽字体模拟真实终端体验
+  - Token 写入 .env 采用原子操作避免文件损坏
+  - 弹窗样式与 DD-001 交易表单的 Glassmorphism Card Overlay 保持统一
+  - 部分组件已有代码实现（src/components/Onboarding/），需对照规格校对

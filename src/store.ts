@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import type { KLineData, ChartConfig, Timeframe } from '@/types/chart';
 import type { TradeInput, TradeRecord, DailyStats } from '@/types/trade';
 
-export type AppMode = 'kline' | 'trade' | 'review' | 'dashboard' | 'idle';
+export type AppMode = 'kline' | 'trade' | 'review' | 'dashboard' | 'idle' | 'onboarding';
 
 interface AppState {
   /** 当前模式 */

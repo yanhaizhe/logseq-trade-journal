@@ -53,7 +53,7 @@ const ProChart: React.FC<ProChartProps> = ({ symbol: initialSymbol, height = 520
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
 
-  // 检测数据服务状态
+  // 检测数据服务状态（仅首次）
   const checkServer = useCallback(async () => {
     const router = getDataRouter();
     const ok = await router.checkAKShareHealth();
@@ -66,8 +66,6 @@ const ProChart: React.FC<ProChartProps> = ({ symbol: initialSymbol, height = 520
 
   useEffect(() => {
     checkServer();
-    const timer = setInterval(checkServer, 15000);
-    return () => clearInterval(timer);
   }, [checkServer]);
 
   // 停止数据服务
