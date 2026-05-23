@@ -3,16 +3,19 @@
  * 根据模式渲染不同的视图：K线图 / 交易表单 / 复盘
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import KlineChartComponent from '@/components/KlineChart/KlineChart';
 import TradeForm from '@/components/TradeForm/TradeForm';
 import DailyReview from '@/components/Review/DailyReview';
+import WelcomeScreen from '@/components/Onboarding/WelcomeScreen';
+import TokenSettingsModal from '@/components/Onboarding/TokenSettingsModal';
 import { useAppStore } from '@/store';
 import { DataService } from '@/core/DataService';
 import { TradeManager } from '@/core/TradeManager';
 import { StatisticsEngine } from '@/core/StatisticsEngine';
 import type { TradeInput, TradeRecord, DailyStats } from '@/types/trade';
 import { todayStr } from '@/utils/format';
+import { extractSymbol } from '@/utils/symbol';
 
 const dataService = new DataService();
 const statsEngine = new StatisticsEngine();
@@ -23,6 +26,50 @@ function getTradeManager(): TradeManager | null {
     ? (window as any).__tradeManager ?? null
     : null;
 }
+
+// 安全获取 frameElement（拦截跨域 SecurityError 异常）
+const getFrameElement = (): HTMLElement | null => {
+  try {
+    return window.frameElement as HTMLElement | null;
+  } catch (e) {
+    return null;
+  }
+};
+
+// 安全获取宿主窗口宽度（拦截跨域 SecurityError 异常）
+const getParentWidth = (): number => {
+  try {
+    return window.parent?.innerWidth || window.innerWidth;
+  } catch (e) {
+    return window.innerWidth;
+  }
+};
+
+// 安全获取宿主窗口高度
+const getParentHeight = (): number => {
+  try {
+    return window.parent?.innerHeight || window.innerHeight;
+  } catch (e) {
+    return window.innerHeight;
+  }
+};
+
+// 安全读写 localStorage
+const safeGetStorage = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+};
+
+const safeSetStorage = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    // 忽略私有模式下的写入异常
+  }
+};
 
 const App: React.FC = () => {
   const {
@@ -37,13 +84,56 @@ const App: React.FC = () => {
   } = useAppStore();
 
   const [symbol, setSymbol] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [recheckKey, setRecheckKey] = useState(0);
+
+  // 分屏比例与尺寸初始化
+  useEffect(() => {
+    const storedRatio = safeGetStorage('tj_split_ratio');
+    let ratio = storedRatio ? parseFloat(storedRatio) : 0.5;
+    if (isNaN(ratio) || !isFinite(ratio) || ratio < 0.1 || ratio > 0.9) {
+      ratio = 0.5;
+    }
+
+    // 首次使用如果无 last_symbol，则强制设为空
+    const hasLastSymbol = safeGetStorage('tj_last_symbol');
+    if (!hasLastSymbol) {
+      setChartConfig({ symbol: '' });
+    }
+
+    const iframe = getFrameElement();
+    if (iframe) {
+      const totalWidth = getParentWidth();
+      const initialW = Math.round(Math.max(320, totalWidth * ratio));
+      iframe.style.width = `${initialW}px`;
+
+      const initialLeft = Math.round(Math.max(0, totalWidth - initialW));
+      iframe.style.left = `${initialLeft}px`;
+      iframe.style.top = '0px';
+
+      window.parent?.postMessage({
+        type: 'resize',
+        width: initialW,
+        height: iframe.clientHeight || window.innerHeight,
+      }, '*');
+    }
+  }, [setChartConfig]);
 
   // 加载 K 线（mock 数据）
   const loadChart = useCallback((sym: string) => {
-    if (!sym.trim()) return;
-    setChartConfig({ symbol: sym.toUpperCase() });
+    const upperSym = sym.trim().toUpperCase();
+    if (!upperSym) return;
+    setChartConfig({ symbol: upperSym });
+    safeSetStorage('tj_last_symbol', upperSym);
     setMode('kline');
   }, [setChartConfig, setMode]);
+
+  const handleLoadChart = useCallback(() => {
+    const trimmed = symbol.trim();
+    if (trimmed) {
+      loadChart(trimmed);
+    }
+  }, [symbol, loadChart]);
 
   // 处理 CSV 文件加载
   const handleCSVLoad = useCallback(async (file: File) => {
@@ -144,6 +234,21 @@ const App: React.FC = () => {
     }
   }, [trades, setDailyStats, setMode, setLoading, setError]);
 
+  const loadDailyReviewRef = useRef(loadDailyReview);
+  useEffect(() => {
+    loadDailyReviewRef.current = loadDailyReview;
+  }, [loadDailyReview]);
+
+  const chartSymbolRef = useRef(chartConfig.symbol);
+  useEffect(() => {
+    chartSymbolRef.current = chartConfig.symbol;
+  }, [chartConfig.symbol]);
+
+  const loadChartRef = useRef(loadChart);
+  useEffect(() => {
+    loadChartRef.current = loadChart;
+  }, [loadChart]);
+
   // 监听来自宿主和内部的消息
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -157,21 +262,33 @@ const App: React.FC = () => {
           } else if (msg.mode === 'trade') {
             setMode('trade');
           } else if (msg.mode === 'review') {
-            loadDailyReview();
+            loadDailyReviewRef.current();
           }
           break;
         case 'visibility-changed':
           setIsVisible(!!msg.visible);
           break;
+        case 'logseq-block-changed': {
+          const block = msg.block;
+          if (!block) {
+            setChartConfig({ symbol: '' });
+          } else {
+            const extracted = extractSymbol(block.content || '', block.properties);
+            if (extracted && extracted !== chartSymbolRef.current) {
+              loadChartRef.current(extracted);
+            }
+          }
+          break;
+        }
       }
     };
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [loadDailyReview, setMode, setIsVisible]);
+  }, [setMode, setIsVisible]);
 
   // 窗口拖拽移动
-  const handleMoveStart = useCallback((e: React.MouseEvent) => {
+  const handleMoveStart = useCallback((e: React.PointerEvent) => {
     // 只在导航栏区域触发
     const target = e.target as HTMLElement;
     if (target.tagName === 'BUTTON' || target.tagName === 'INPUT') return;
@@ -179,66 +296,136 @@ const App: React.FC = () => {
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const iframe = window.frameElement as HTMLElement | null;
-    const startLeft = iframe ? parseInt(iframe.style.left || '0') : 0;
-    const startTop = iframe ? parseInt(iframe.style.top || '0') : 0;
+    const iframe = getFrameElement();
+    const startLeft = iframe ? (parseInt(iframe.style.left) || 0) : 0;
+    const startTop = iframe ? (parseInt(iframe.style.top) || 0) : 0;
 
-    const onMove = (ev: MouseEvent) => {
-      const left = startLeft + ev.clientX - startX;
-      const top = startTop + ev.clientY - startY;
+    const currentTarget = e.currentTarget as HTMLElement;
+    try {
+      currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const left = Math.round(startLeft + ev.clientX - startX);
+      const top = Math.round(startTop + ev.clientY - startY);
       if (iframe) {
         iframe.style.left = `${Math.max(0, left)}px`;
         iframe.style.top = `${Math.max(0, top)}px`;
       }
     };
 
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        currentTarget.releasePointerCapture(ev.pointerId);
+      } catch {}
+      currentTarget.removeEventListener('pointermove', onPointerMove);
+      currentTarget.removeEventListener('pointerup', onPointerUp);
+      currentTarget.removeEventListener('pointercancel', onPointerUp);
     };
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    currentTarget.addEventListener('pointermove', onPointerMove);
+    currentTarget.addEventListener('pointerup', onPointerUp);
+    currentTarget.addEventListener('pointercancel', onPointerUp);
   }, []);
 
   // 窗口拖拽缩放
-  const handleResizeStart = useCallback((edge: string) => (e: React.MouseEvent) => {
+  const handleResizeStart = useCallback((edge: string) => (e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const iframe = window.frameElement as HTMLElement | null;
+    const iframe = getFrameElement();
     const startW = iframe?.clientWidth ?? window.innerWidth;
     const startH = iframe?.clientHeight ?? window.innerHeight;
+    const startLeft = iframe ? (parseInt(iframe.style.left) || 0) : 0;
 
-    const onMove = (ev: MouseEvent) => {
+    const currentTarget = e.currentTarget as HTMLElement;
+    try {
+      currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+
+    let rafId: number | null = null;
+    let lastW = startW;
+    let lastH = startH;
+
+    const onPointerMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
       let newW = startW;
       let newH = startH;
+      let newLeft = startLeft;
 
-      if (edge.includes('right')) newW = Math.max(320, startW + dx);
-      if (edge.includes('bottom')) newH = Math.max(200, startH + dy);
+      const totalHeight = getParentHeight();
+
+      if (edge.includes('left')) {
+        const maxW = startW + startLeft;
+        newW = Math.min(maxW, Math.max(320, startW - dx));
+        newLeft = startLeft + (startW - newW);
+      }
+      if (edge.includes('right')) {
+        newW = Math.max(320, startW + dx);
+      }
+      if (edge.includes('bottom')) {
+        newH = Math.min(totalHeight, Math.max(200, startH + dy));
+      }
+
+      newW = Math.round(newW);
+      newH = Math.round(newH);
+      newLeft = Math.round(newLeft);
 
       if (iframe) {
         iframe.style.width = `${newW}px`;
         iframe.style.height = `${newH}px`;
+        if (edge.includes('left')) {
+          iframe.style.left = `${newLeft}px`;
+        }
       }
 
-      // 同时通知 Logseq 宿主
+      lastW = newW;
+      lastH = newH;
+
+      // 使用 requestAnimationFrame 节流 postMessage 发送
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          window.parent?.postMessage({
+            type: 'resize',
+            width: lastW,
+            height: lastH,
+          }, '*');
+          rafId = null;
+        });
+      }
+    };
+
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        currentTarget.releasePointerCapture(ev.pointerId);
+      } catch {}
+      currentTarget.removeEventListener('pointermove', onPointerMove);
+      currentTarget.removeEventListener('pointerup', onPointerUp);
+      currentTarget.removeEventListener('pointercancel', onPointerUp);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+
+      // 最后确保发一次最终位置的消息，防止 raf 遗漏
+      const finalW = Math.round(iframe ? iframe.clientWidth : lastW);
+      const finalH = Math.round(iframe ? iframe.clientHeight : lastH);
       window.parent?.postMessage({
         type: 'resize',
-        width: newW,
-        height: newH,
+        width: finalW,
+        height: finalH,
       }, '*');
+
+      if (iframe) {
+        const totalWidth = getParentWidth();
+        const ratio = parseFloat((finalW / totalWidth).toFixed(4));
+        const safeRatio = isNaN(ratio) || !isFinite(ratio) ? 0.5 : Math.max(0.1, Math.min(0.9, ratio));
+        safeSetStorage('tj_split_ratio', safeRatio.toString());
+      }
     };
 
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    currentTarget.addEventListener('pointermove', onPointerMove);
+    currentTarget.addEventListener('pointerup', onPointerUp);
   }, []);
 
   // 错误自动消失
@@ -252,7 +439,7 @@ const App: React.FC = () => {
   return (
     <div className="trade-journal-app">
       {/* 导航栏（可拖动窗口） */}
-      <nav className="app-nav" onMouseDown={handleMoveStart}>
+      <nav className="app-nav" onPointerDown={handleMoveStart}>
         <span className="nav-drag-hint">⋮⋮</span>
 
         {/* 恢复默认大小 */}
@@ -260,12 +447,21 @@ const App: React.FC = () => {
           className="nav-btn nav-reset-btn"
           title="恢复默认大小"
           onClick={() => {
-            const iframe = window.frameElement as HTMLElement | null;
+            const totalWidth = getParentWidth();
+            const totalHeight = getParentHeight();
+            const defaultW = Math.round(Math.max(320, totalWidth * 0.5));
+            const defaultH = Math.round(Math.min(720, Math.max(200, totalHeight)));
+
+            const iframe = getFrameElement();
             if (iframe) {
-              iframe.style.width = '520px';
-              iframe.style.height = '720px';
+              iframe.style.width = `${defaultW}px`;
+              iframe.style.height = `${defaultH}px`;
+              iframe.style.left = `${totalWidth - defaultW}px`;
+              iframe.style.top = '0px';
             }
-            window.parent?.postMessage({ type: 'resize', width: 520, height: 720 }, '*');
+
+            safeSetStorage('tj_split_ratio', '0.5');
+            window.parent?.postMessage({ type: 'resize', width: defaultW, height: defaultH }, '*');
           }}
         >
           ⬚
@@ -276,7 +472,7 @@ const App: React.FC = () => {
           className="nav-btn nav-close-btn"
           title="关闭面板"
           onClick={() => {
-            try { logseq.hideMainUI(); } catch {}
+            (window as any).logseq?.hideMainUI();
             window.parent?.postMessage({ type: 'close' }, '*');
           }}
         >
@@ -299,8 +495,35 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Token 配置弹窗 */}
+      <TokenSettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={() => {
+          setSettingsOpen(false);
+          setRecheckKey(prev => prev + 1);
+          setMode('onboarding');
+        }}
+      />
+
       {/* 内容区 */}
       <main className="app-content">
+        {/* Onboarding 自检页 (Page 03.1) */}
+        {mode === 'onboarding' && (
+          <WelcomeScreen
+            key={recheckKey}
+            onEnterWorkspace={() => {
+              // 如果首次没有 last_symbol 缓存，则显式设置为空字符串
+              const hasLastSymbol = safeGetStorage('tj_last_symbol');
+              if (!hasLastSymbol) {
+                setChartConfig({ symbol: '' });
+              }
+              setMode('kline');
+            }}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+        )}
+
         {/* Idle 首页 */}
         {mode === 'idle' && (
           <div className="welcome-screen">
@@ -344,7 +567,25 @@ const App: React.FC = () => {
         {/* K线图模式 */}
         {mode === 'kline' && (
           <div className="kline-view">
-            <KlineChartComponent symbol={chartConfig.symbol} height={520} />
+            {chartConfig.symbol ? (
+              <KlineChartComponent symbol={chartConfig.symbol} height={520} />
+            ) : (
+              <div className="tj-kline-empty-state">
+                <div className="tj-empty-icon">📊</div>
+                <h2>复盘工作区</h2>
+                <p>输入标的代码开始分析</p>
+                <div className="tj-empty-input-row">
+                  <input
+                    type="text"
+                    placeholder="A股:000001 / 美股:AAPL / 加密:BTCUSDT"
+                    value={symbol}
+                    onChange={e => setSymbol(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleLoadChart()}
+                  />
+                  <button onClick={handleLoadChart}>进入</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -370,9 +611,10 @@ const App: React.FC = () => {
       </main>
 
       {/* 窗口缩放拖拽手柄 */}
-      <div className="resize-handle right" onMouseDown={handleResizeStart('right')} />
-      <div className="resize-handle bottom" onMouseDown={handleResizeStart('bottom')} />
-      <div className="resize-handle bottom-right" onMouseDown={handleResizeStart('bottom-right')} />
+      <div className="resize-handle left" onPointerDown={handleResizeStart('left')} />
+      <div className="resize-handle right" onPointerDown={handleResizeStart('right')} />
+      <div className="resize-handle bottom" onPointerDown={handleResizeStart('bottom')} />
+      <div className="resize-handle bottom-right" onPointerDown={handleResizeStart('bottom-right')} />
     </div>
   );
 };

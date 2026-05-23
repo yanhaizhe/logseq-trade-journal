@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { KLineChartPro, Period, SymbolInfo } from '@klinecharts/pro';
 import '@klinecharts/pro/dist/klinecharts-pro.css';
 import { getDataRouter } from '@/core/DataRouter';
@@ -109,7 +109,7 @@ const HOT_SYMBOLS: Record<string, Array<{ symbol: string; name: string; market: 
 };
 
 const KlineChartComponent: React.FC<KlineChartProps> = ({
-  symbol: initialSymbol = '000001',
+  symbol = '000001',
   height = 560,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -117,12 +117,16 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isVisible = useAppStore(state => state.isVisible);
 
-  const [currentSymbol, setCurrentSymbol] = useState(initialSymbol);
+  const [currentSymbol, setCurrentSymbol] = useState(symbol);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [currentChange, setCurrentChange] = useState<number>(0);
   const [currentChangePct, setCurrentChangePct] = useState<number>(0);
   const [marketType, setMarketType] = useState<string>('ashare');
   const [instrumentInfo, setInstrumentInfo] = useState<InstrumentInfo | null>(null);
+
+  // 状态监测与健康自检
+  const [chartState, setChartState] = useState<'normal' | 'not_found' | 'offline'>('normal');
+  const [isOnline, setIsOnline] = useState<boolean>(true);
 
   // Panels state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -133,10 +137,13 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
   // Watchlist states
   const [watchlist, setWatchlist] = useState<Array<{ symbol: string; name: string; market: string }>>(() => {
-    const saved = localStorage.getItem('tj_watchlist');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
+    try {
+      const saved = localStorage.getItem('tj_watchlist');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
     return [
       { symbol: '600519', name: '贵州茅台', market: 'ashare' },
       { symbol: 'AAPL', name: 'Apple Inc.', market: 'us' },
@@ -167,6 +174,69 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ symbol: string; name: string; market: string; exchange: string }>>([]);
 
+  // 将 handleSelectSymbol 用 useCallback 声明并置顶
+  const handleSelectSymbol = useCallback((sym: string, name?: string) => {
+    const cleaned = sym.toUpperCase().trim();
+    const market = detectMarket(cleaned);
+    const isCrypto = market === 'crypto';
+
+    if (proChartRef.current) {
+      proChartRef.current.setSymbol({
+        ticker: cleaned,
+        name: name || cleaned,
+        shortName: name || cleaned,
+        market: isCrypto ? 'crypto' : 'stocks',
+        pricePrecision: isCrypto ? 4 : 2,
+        volumePrecision: 0,
+        priceCurrency: isCrypto ? 'USDT' : 'CNY',
+        type: isCrypto ? 'crypto' : 'stock',
+      });
+      setCurrentSymbol(cleaned);
+    }
+  }, []);
+
+  // 自检重载
+  const checkHealthAndReload = useCallback(async () => {
+    try {
+      const healthy = await dataRouter.checkAKShareHealth();
+      setIsOnline(healthy);
+      if (healthy) {
+        if (chartState === 'offline') {
+          setChartState('normal');
+          if (proChartRef.current) {
+            handleSelectSymbol(currentSymbol);
+          }
+        }
+      } else {
+        setChartState('offline');
+      }
+    } catch {
+      setIsOnline(false);
+      setChartState('offline');
+    }
+  }, [chartState, currentSymbol, handleSelectSymbol]);
+
+  // Props.symbol 同步变动
+  useEffect(() => {
+    if (symbol && symbol !== currentSymbol) {
+      handleSelectSymbol(symbol);
+    }
+  }, [symbol, currentSymbol, handleSelectSymbol]);
+
+  // 15秒健康度轮询 (使用 checkHealthRef 避免 timer 频繁销毁与重置)
+  const checkHealthRef = useRef(checkHealthAndReload);
+  useEffect(() => {
+    checkHealthRef.current = checkHealthAndReload;
+  }, [checkHealthAndReload]);
+
+  useEffect(() => {
+    checkHealthRef.current();
+    const timer = setInterval(() => {
+      checkHealthRef.current();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
+
   const decimals = currentPrice > 1000 ? 2 : currentPrice > 1 ? 2 : 4;
 
   // Sync current price details with watchlist in real time
@@ -184,7 +254,9 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
   // Background fetch prices for all watchlist items
   useEffect(() => {
-    localStorage.setItem('tj_watchlist', JSON.stringify(watchlist));
+    try {
+      localStorage.setItem('tj_watchlist', JSON.stringify(watchlist));
+    } catch {}
     if (watchlist.length === 0 || !isVisible) return;
 
     let isMounted = true;
@@ -253,7 +325,9 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
   useEffect(() => {
     if (currentSymbol) {
-      localStorage.setItem('tj_last_symbol', currentSymbol);
+      try {
+        localStorage.setItem('tj_last_symbol', currentSymbol);
+      } catch {}
     }
   }, [currentSymbol]);
 
@@ -268,41 +342,24 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
     });
   };
 
-  const handleSelectSymbol = (symbol: string, name?: string) => {
-    const cleaned = symbol.toUpperCase().trim();
-    const market = detectMarket(cleaned);
-    const isCrypto = market === 'crypto';
+  // handleSelectSymbol has been declared at the top
 
-    if (proChartRef.current) {
-      proChartRef.current.setSymbol({
-        ticker: cleaned,
-        name: name || cleaned,
-        shortName: name || cleaned,
-        market: isCrypto ? 'crypto' : 'stocks',
-        pricePrecision: isCrypto ? 4 : 2,
-        volumePrecision: 0,
-        priceCurrency: isCrypto ? 'USDT' : 'CNY',
-        type: isCrypto ? 'crypto' : 'stock',
-      });
-      setCurrentSymbol(cleaned);
-    }
-  };
-
-  // Initialize and clean up chart
+  const initializedRef = useRef(false);
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || initializedRef.current) return;
+    initializedRef.current = true;
 
-    const initialMarket = detectMarket(initialSymbol);
+    const initialMarket = detectMarket(symbol);
     const isCrypto = initialMarket === 'crypto';
 
     const pro = new KLineChartPro({
       container: chartContainerRef.current,
       symbol: {
-        ticker: initialSymbol,
-        name: initialSymbol,
-        shortName: initialSymbol,
+        ticker: symbol,
+        name: symbol,
+        shortName: symbol,
         market: isCrypto ? 'crypto' : 'stocks',
-        exchange: initialSymbol.startsWith('60') ? 'SH' : 'SZ',
+        exchange: symbol.startsWith('60') ? 'SH' : 'SZ',
         pricePrecision: isCrypto ? 4 : 2,
         volumePrecision: 0,
         priceCurrency: isCrypto ? 'USDT' : 'CNY',
@@ -372,9 +429,22 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
               } catch {}
               setInstrumentInfo(info);
             }
+            setChartState('normal');
             return result.data;
           } catch (e) {
             console.error('[Datafeed] getHistoryKLineData failed:', e);
+            try {
+              const isHealthy = await dataRouter.checkAKShareHealth();
+              if (!isHealthy) {
+                setChartState('offline');
+                setIsOnline(false);
+              } else {
+                setChartState('not_found');
+              }
+            } catch {
+              setChartState('offline');
+              setIsOnline(false);
+            }
             return [];
           }
         },
@@ -386,7 +456,6 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
     proChartRef.current = pro;
 
     return () => {
-      // Clean up pro instance
       if (proChartRef.current) {
         try {
           (proChartRef.current as any)._chartApi?.dispose();
@@ -395,8 +464,9 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
         }
         proChartRef.current = null;
       }
+      initializedRef.current = false;
     };
-  }, [initialSymbol]);
+  }, []);
 
   // Handle dynamic simulation data generation for Order Book and Recent Trades
   useEffect(() => {
@@ -605,8 +675,34 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
 
       {/* 主体区域：左侧图表，右侧深度与委托 */}
       <div className="tj-pro-chart-body" style={{ height }}>
-        {/* 图表容器 */}
-        <div ref={chartContainerRef} className="tj-pro-chart-container" />
+        {/* 图表容器包装 */}
+        <div className="tj-pro-chart-container-wrapper" style={{ position: 'relative', flex: 1, height: '100%' }}>
+          <div 
+            ref={chartContainerRef} 
+            className="tj-pro-chart-container" 
+            style={chartState === 'offline' ? { filter: 'grayscale(1) opacity(0.5)', height: '100%' } : { height: '100%' }}
+          />
+          {chartState !== 'normal' && (
+            <div className="tj-kline-error-overlay">
+              <div className="tj-error-overlay-content">
+                <span className="tj-error-icon">
+                  {chartState === 'offline' ? '🔌' : '🔍'}
+                </span>
+                <h3>{chartState === 'offline' ? '数据服务未连接' : '未找到标的'}</h3>
+                <p>
+                  {chartState === 'offline' 
+                    ? '无法连接至本地 FastAPI 服务 (127.0.0.1:8765)，正在尝试自动重连...' 
+                    : `标的 ${currentSymbol} 在当前市场中不存在或无历史数据`}
+                </p>
+                {chartState === 'offline' && (
+                  <button className="tj-retry-btn" onClick={checkHealthAndReload}>
+                    重新连接
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 侧边栏 */}
         <div 
@@ -954,6 +1050,21 @@ const KlineChartComponent: React.FC<KlineChartProps> = ({
           </div>
         </div>
       )}
+
+      {/* 底部状态条 */}
+      <div className="tj-status-strip">
+        <div className="tj-status-left">
+          <span>当前标的: <b>{currentSymbol}</b></span>
+          <span className="tj-divider">|</span>
+          <span>数据周期: <b>{currentPeriod === 'daily' ? '日线' : currentPeriod}</b></span>
+        </div>
+        <div className="tj-status-right">
+          <span className={`tj-status-light ${isOnline ? 'tj-online' : 'tj-offline'}`} />
+          <span className="tj-status-text">
+            数据服务: {isOnline ? '连接正常' : '连接异常'}
+          </span>
+        </div>
+      </div>
 
     </div>
   );
